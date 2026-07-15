@@ -56,13 +56,19 @@ def score(truth_path, calls_path, sample: str, caller: str, window: int):
             "status_accuracy_given_detected": (
                 sum(m.get("status_correct") == "1" for m in det) / len(det) if det else "NA"),
             "tsd_exact_events": sum(m.get("tsd_exact") == "1" for m in det),
+            # AGGREGATION CONTRACT: false_positive_calls and precision use GLOBAL
+            # (all-calls) denominators. len(fps) is the total unmatched calls and
+            # len(calls) is the total call count -- both are repeated verbatim on
+            # every per-class row. Downstream consumers must NOT sum
+            # false_positive_calls across class rows (that would multiply the
+            # single global count by the number of classes).
             "false_positive_calls": len(fps),
             "precision": (len(det) / len(calls)) if calls else "NA",
         })
     return summary, matches, fps
 
 
-def main() -> int:
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--truth", required=True, type=Path)
     ap.add_argument("--calls", required=True, type=Path)
@@ -70,7 +76,7 @@ def main() -> int:
     ap.add_argument("--caller", required=True)
     ap.add_argument("--window", type=int, default=10)
     ap.add_argument("--outdir", required=True, type=Path)
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     if args.outdir.exists() and any(args.outdir.iterdir()):
         raise FileExistsError(f"Refusing non-empty report dir: {args.outdir}")
     args.outdir.mkdir(parents=True)

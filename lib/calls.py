@@ -18,10 +18,15 @@ def parse_characterized_txt(path: str | Path, caller: str, sample: str) -> Itera
     with open(path) as fh:
         for line in fh:
             line = line.rstrip("\n")
-            if not line or line.startswith("#") or line.lower().startswith("strain"):
+            if not line or line.startswith("#"):
                 continue
             f = line.split("\t")
             if len(f) < 8:
+                continue
+            # Skip only the true header row (first field "strain" AND the coord
+            # column is a header label, never a real "chrom:start..end" token).
+            # This keeps samples literally named "strain..." from being dropped.
+            if f[0].lower() == "strain" and not _COORD.match(f[3]):
                 continue
             _strain, te, tsd, chrom_pos, strand, _flank, _span, status = f[:8]
             m = _COORD.match(chrom_pos)

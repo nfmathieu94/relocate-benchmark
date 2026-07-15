@@ -22,6 +22,19 @@ class TestCalls(unittest.TestCase):
         self.assertEqual(rows[0]["caller"], "relocate3")
         self.assertEqual(rows[1]["position"], 2000)
 
+    def test_sample_named_strain_not_dropped(self):
+        # Header skip must not silently drop a data row whose strain name
+        # starts with "strain"; the coord column disambiguates header vs data.
+        text = (
+            "strain\tTE\tTSD\tchromosome.pos\tstrand\tavg_flankers\tspanners\tstatus\n"
+            "strainA\tmPing\tTTA\tChr1:1000..1002\t+\t5\t2\thomozygous\n"
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+            fh.write(text); path = fh.name
+        rows = list(parse_characterized_txt(path, caller="relocate2", sample="strainA"))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["position"], 1000)
+
     def test_header_constant(self):
         self.assertEqual(
             NORMALIZED_HEADER,
