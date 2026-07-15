@@ -1,0 +1,20 @@
+# Large caller run outputs and alignments (regenerable)
+runs/*
+!runs/.gitkeep
+
+# Logs
+logs/*
+!logs/.gitkeep
+*.log
+
+# Large per-sample match tables
+reports/per_sample/*
+!reports/.gitkeep
+
+# Truth completion sentinel (data itself is small + tracked)
+truth/.complete
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
