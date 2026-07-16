@@ -8,7 +8,12 @@ from pathlib import Path
 
 
 def _norm(v: str) -> str:
-    return v.lower().replace("_", "").replace("insertion", "") if "somatic" in v.lower() else v.lower().replace("_", "")
+    # Strip any RepeatMasker class/family suffix so caller TE names match the
+    # truth family name (e.g. "mPing#DNA/Harbinger" -> "mPing"). Then lowercase,
+    # drop underscores, and collapse the "somatic_insertion"/"somatic" vocabulary
+    # so truth classes and caller genotype strings compare on equal footing.
+    lo = v.split("#", 1)[0].lower().replace("_", "")
+    return lo.replace("insertion", "") if "somatic" in lo else lo
 
 
 def _load(path):

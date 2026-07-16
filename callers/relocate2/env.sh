@@ -22,6 +22,13 @@ if command -v relocaTE2.py >/dev/null 2>&1; then
   fi
 fi
 
+# The relocate2-bundled bwa is too old for `bwa mem` (which the adapter uses to
+# build the reads-to-genome BAM). Load a modern bwa AFTER the bundled bin so it
+# wins on PATH; blat/samtools still come from the relocate2 package.
+if command -v module >/dev/null 2>&1; then
+  module load bwa/0.7.19 || true
+fi
+
 # Verify every required tool is present; exit 127 (command not found) if not.
 for tool in relocaTE2.py blat bwa samtools; do
   command -v "$tool" >/dev/null 2>&1 || {

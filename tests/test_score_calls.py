@@ -51,6 +51,24 @@ class TestScore(unittest.TestCase):
         self.assertEqual(by_class["somatic_insertion"]["status_correct_events"], 1)
         self.assertEqual(len(fps), 0)
 
+    def test_te_family_repeatmasker_suffix_matches(self):
+        # Real callers emit RepeatMasker-style TE names (e.g. RelocaTE3 emits
+        # "mPing#DNA/Harbinger") while truth is the bare family "mPing". _norm
+        # strips the "#class/family" suffix so these still match. Fails (0 recall)
+        # if the suffix stripping is removed.
+        truth = self.d / "truth_rm.tsv"
+        calls = self.d / "calls_rm.tsv"
+        _write(truth,
+               ["event_id","chrom","position","te_family","biological_class","tsd"],
+               [{"event_id":"R1","chrom":"Chr1","position":247385,"te_family":"mPing","biological_class":"homozygous","tsd":"AAG"}])
+        _write(calls,
+               ["chrom","position","te_family","tsd","strand","status","caller","sample"],
+               [{"chrom":"Chr1","position":247381,"te_family":"mPing#DNA/Harbinger","tsd":"AAG","strand":"+","status":"homozygous","caller":"relocate3","sample":"S1"}])
+        summary, matches, fps = score(truth, calls, sample="S1", caller="relocate3", window=10)
+        by_class = {r["biological_class"]: r for r in summary}
+        self.assertEqual(by_class["homozygous"]["detected_events"], 1)
+        self.assertEqual(len(fps), 0)
+
     def test_main_writes_reports(self):
         # Truth/calls where every call matches a truth event -> zero false positives,
         # exercising the empty-file branch of _write for false_positive_calls.tsv.
