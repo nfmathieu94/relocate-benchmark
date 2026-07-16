@@ -6,6 +6,8 @@ Reads per-sample ``correctness.tsv`` files under
 under ``<report-root>/resources/<caller>/<sample>.tsv`` and writes:
     <report-root>/correctness.tsv - all correctness rows, joined with
         coverage/replicate from the panel manifest (samples.tsv)
+    <report-root>/precision.tsv   - all per-sample precision rows, joined with
+        coverage/replicate from the panel manifest (samples.tsv)
     <report-root>/resources.tsv   - all resource rows (union of columns)
 """
 from __future__ import annotations
@@ -45,11 +47,17 @@ def _combine_correctness(report_root, samples_path, out_path):
     meta = _load_sample_meta(samples_path)
     paths = sorted(glob.glob(str(report_root / "per_sample" / "*" / "*" / "correctness.tsv")))
     rows = []
+    # Union of columns across all files (preserving first-seen order) so newer
+    # columns such as cellular_fraction/expected_vaf are carried through even if
+    # the first file scanned predates them.
     base_fields = []
+    seen = set()
     for path in paths:
         fields, file_rows = _read_tsv(path)
-        if fields and not base_fields:
-            base_fields = fields
+        for f in fields:
+            if f not in seen:
+                seen.add(f)
+                base_fields.append(f)
         rows.extend(file_rows)
 
     if not rows:
@@ -78,6 +86,55 @@ def _combine_correctness(report_root, samples_path, out_path):
         _int_or_inf(r.get("coverage")),
         _int_or_inf(r.get("replicate")),
         r.get("biological_class", ""),
+        r.get("cellular_fraction", ""),
+    ))
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=out_fields, delimiter="\t", extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _combine_precision(report_root, samples_path, out_path):
+    meta = _load_sample_meta(samples_path)
+    paths = sorted(glob.glob(str(report_root / "per_sample" / "*" / "*" / "precision.tsv")))
+    rows = []
+    base_fields = []
+    seen = set()
+    for path in paths:
+        fields, file_rows = _read_tsv(path)
+        for f in fields:
+            if f not in seen:
+                seen.add(f)
+                base_fields.append(f)
+        rows.extend(file_rows)
+
+    if not rows:
+        print(f"WARNING: no precision rows found under {report_root}/per_sample", file=sys.stderr)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text("")
+        return
+
+    # Insert coverage/replicate right after the 'sample' column.
+    out_fields = list(base_fields)
+    if "sample" in out_fields:
+        idx = out_fields.index("sample") + 1
+    else:
+        idx = len(out_fields)
+    for extra in ("replicate", "coverage"):
+        if extra not in out_fields:
+            out_fields.insert(idx, extra)
+
+    for row in rows:
+        cov, rep = meta.get(row.get("sample", ""), ("", ""))
+        row["coverage"] = cov
+        row["replicate"] = rep
+
+    rows.sort(key=lambda r: (
+        r.get("caller", ""),
+        _int_or_inf(r.get("coverage")),
+        _int_or_inf(r.get("replicate")),
     ))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -122,13 +179,16 @@ def main(argv=None) -> int:
     ap.add_argument("--report-root", required=True, type=Path)
     ap.add_argument("--samples", required=True, type=Path)
     ap.add_argument("--out-correctness", type=Path)
+    ap.add_argument("--out-precision", type=Path)
     ap.add_argument("--out-resources", type=Path)
     args = ap.parse_args(argv)
 
     out_corr = args.out_correctness or (args.report_root / "correctness.tsv")
+    out_prec = args.out_precision or (args.report_root / "precision.tsv")
     out_res = args.out_resources or (args.report_root / "resources.tsv")
 
     _combine_correctness(args.report_root, args.samples, out_corr)
+    _combine_precision(args.report_root, args.samples, out_prec)
     _combine_resources(args.report_root, out_res)
     return 0
 
