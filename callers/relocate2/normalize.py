@@ -12,6 +12,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--outdir", required=True, type=Path)   # the caller OUTDIR
     ap.add_argument("--sample", required=True)
+    # Accepted for a uniform normalizer CLI across callers; unused by relocate2.
+    ap.add_argument("--te-name", default="mPing")
+    ap.add_argument("--target", default="ALL")
     args = ap.parse_args(argv)
 
     txt = (

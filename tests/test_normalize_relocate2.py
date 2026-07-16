@@ -39,7 +39,10 @@ class TestNormalizeRelocate2(unittest.TestCase):
     def test_writes_normalized_tsv(self):
         with tempfile.TemporaryDirectory() as td:
             outdir = _make_outdir(Path(td))
-            rc = normalize.main(["--outdir", str(outdir), "--sample", "S1"])
+            rc = normalize.main(
+                ["--outdir", str(outdir), "--sample", "S1",
+                 "--te-name", "mPing", "--target", "ALL"]
+            )
             self.assertEqual(rc, 0)
 
             out = outdir / "calls.normalized.tsv"
