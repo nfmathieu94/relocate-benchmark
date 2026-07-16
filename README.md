@@ -32,6 +32,8 @@ data.
 - **RelocaTE3** via its pixi environment, located at the repo path in
   `config/benchmark.toml` → `[callers.relocate3].repo`.
 - **SLURM** for running the benchmark array.
+- **R** (`module load R`) with `ggplot2` for the multipage PDF report
+  (`scoring/make_report.R`). Optional — the numeric TSV reports do not need R.
 
 ## Layout
 
@@ -39,11 +41,11 @@ data.
 relocate-benchmark/
 ├── config/     benchmark.toml — dataset paths, caller registry, scoring params
 ├── callers/    per-caller adapters: relocate2/, relocate3/ {env.sh, run.sh, normalize.py}
-├── scoring/    export_truth, score_calls, combine_reports, compare_callers, parse_time_v
-├── pipeline/   submit_benchmark.sh, run_benchmark_array.sh, config_env.py
+├── scoring/    export_truth, score_calls, combine_reports, compare_callers, parse_time_v, make_report.R
+├── pipeline/   submit_benchmark.sh, run_benchmark_array.sh, aggregate.sh, update_relocate3.sh, config_env.py
 ├── lib/        config.py (stdlib TOML + ${section.key} interpolation), calls.py (schema)
 ├── truth/      normalized truth exported from the panel (small, TRACKED)
-├── reports/    combined summary tables (TRACKED); per_sample/ + resources/ gitignored
+├── reports/    combined summary tables + benchmark_report.pdf (TRACKED); per_sample/ + resources/ gitignored
 ├── runs/       per-caller × per-sample outputs + alignments (GITIGNORED)
 └── docs/       plans/ + data_provenance.md
 ```
@@ -59,33 +61,76 @@ relocate-benchmark/
    bash pipeline/submit_benchmark.sh
    ```
 
-   This exports truth from the panel and submits the SLURM array (one task per
-   caller × sample; currently 2 callers × 9 samples = 18 tasks).
+   This exports truth from the panel, submits the SLURM array (one task per
+   caller × sample; currently 2 callers × 9 samples = 18 tasks), and submits a
+   dependent **aggregation job** that runs automatically once the array finishes
+   — combining the reports and rendering the PDF. No manual step needed.
 
-3. After **all** array tasks finish, aggregate:
+3. Read the results (written by the aggregation job):
+
+   ```
+   reports/correctness.tsv        per caller·coverage·replicate·class·cellular_fraction
+   reports/precision.tsv          per caller·sample overall precision + false-discovery rate
+   reports/head_to_head.tsv       RelocaTE2 vs RelocaTE3 (recall, status accuracy, deltas)
+   reports/resources.tsv          wall time + peak RSS
+   reports/benchmark_report.pdf   multipage figure report
+   ```
+
+   To aggregate manually (e.g. after a `--no-aggregate` run):
 
    ```bash
    python3.12 scoring/combine_reports.py --report-root reports --samples truth/samples.tsv
    python3.12 scoring/compare_callers.py --correctness reports/correctness.tsv --outdir reports
+   module load R && Rscript scoring/make_report.R reports reports/benchmark_report.pdf
    ```
 
-4. Read the results:
+## Running a subset (troubleshooting)
 
-   ```
-   reports/correctness.tsv
-   reports/resources.tsv
-   reports/head_to_head.tsv
-   ```
+Re-run only specific data groups by filtering on caller, coverage, sample, or
+replicate — the task indices stay stable, so only the matching array tasks run:
+
+```bash
+bash pipeline/submit_benchmark.sh --caller relocate3            # only RelocaTE3
+bash pipeline/submit_benchmark.sh --coverage 30                 # only 30x samples
+bash pipeline/submit_benchmark.sh --sample cov30x_rep1          # one sample, both callers
+bash pipeline/submit_benchmark.sh --caller relocate3 --coverage 5,15   # combine filters
+```
+
+Add `--no-aggregate` to skip the dependent aggregation job.
+
+## Updating RelocaTE3 between runs
+
+RelocaTE3 is installed *editable* in its pixi env, so code edits in its dev repo
+are live on the next benchmark run. To sync the environment (after dependency or
+entry-point changes) and optionally pull/test:
+
+```bash
+bash pipeline/update_relocate3.sh              # pixi install (sync env)
+bash pipeline/update_relocate3.sh --pull       # git pull origin first
+bash pipeline/update_relocate3.sh --pull --test  # then run RelocaTE3's unit tests
+```
+
+It prints the resolved RelocaTE3 git commit so you know which version the next
+benchmark will use.
 
 ## Outputs
 
-- **`reports/correctness.tsv`** — per caller · coverage · replicate · class:
-  recall, precision, status accuracy, and exact-TSD accuracy.
+- **`reports/correctness.tsv`** — per caller · coverage · replicate · class ·
+  `cellular_fraction`: recall, genotype-status accuracy, exact-TSD accuracy, and
+  `class_call_share` (this class's true detections ÷ all of that caller's calls
+  — a diagnostic, **not** a precision; see `precision.tsv` for precision).
+  Somatic rows break out by cellular fraction (VAF tier).
+- **`reports/precision.tsv`** — per caller × sample: `total_calls`,
+  `matched_calls`, `overall_precision` (matched ÷ total), and
+  `false_discovery_rate`. This is the trustworthy precision metric.
+- **`reports/head_to_head.tsv`** — side-by-side per class · cellular_fraction ·
+  coverage with per-caller recall + status accuracy and recall deltas. N-caller
+  ready.
 - **`reports/resources.tsv`** — runtime and memory per caller × sample, parsed
   from `/usr/bin/time -v`.
-- **`reports/head_to_head.tsv`** — side-by-side per class · coverage with
-  per-caller metrics and recall deltas (which caller wins, and events each
-  caller uniquely detected or missed). N-caller ready.
+- **`reports/benchmark_report.pdf`** — multipage figures: recall by class,
+  status accuracy, precision + false-positive counts, somatic recall by cellular
+  fraction, and compute resources.
 
 ## Adding a new caller
 
