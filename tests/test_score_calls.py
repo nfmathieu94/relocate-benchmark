@@ -25,13 +25,77 @@ class TestScore(unittest.TestCase):
                 {"chrom":"Chr1","position":9999,"te_family":"mPing","tsd":"XX","strand":"+","status":"homozygous","caller":"relocate3","sample":"S1"}])
 
     def test_score(self):
-        summary, matches, fps = score(self.truth, self.calls, sample="S1", caller="relocate3", window=10)
+        summary, matches, fps, precision_row = score(self.truth, self.calls, sample="S1", caller="relocate3", window=10)
         by_class = {r["biological_class"]: r for r in summary}
         self.assertEqual(by_class["homozygous"]["detected_events"], 1)
         self.assertEqual(by_class["homozygous"]["status_correct_events"], 1)
         self.assertEqual(by_class["homozygous"]["tsd_exact_events"], 1)
         self.assertEqual(by_class["somatic_insertion"]["detected_events"], 0)
         self.assertEqual(len(fps), 1)
+        # class summary column renamed precision -> class_call_share (same formula)
+        self.assertIn("class_call_share", by_class["homozygous"])
+        self.assertNotIn("precision", by_class["homozygous"])
+        self.assertEqual(by_class["homozygous"]["class_call_share"], 1 / 2)
+        # per-sample precision row: 1 matched of 2 calls -> 0.5
+        self.assertEqual(precision_row["caller"], "relocate3")
+        self.assertEqual(precision_row["sample"], "S1")
+        self.assertEqual(precision_row["total_calls"], 2)
+        self.assertEqual(precision_row["matched_calls"], 1)
+        self.assertEqual(precision_row["false_positive_calls"], 1)
+        self.assertEqual(precision_row["overall_precision"], 0.5)
+        self.assertEqual(precision_row["false_discovery_rate"], 0.5)
+
+    def test_somatic_cellular_fraction_split(self):
+        # Two somatic truth events at cellular_fraction 0.1 and 0.4 must produce
+        # SEPARATE summary rows keyed by cellular_fraction with independent recall.
+        # Only the 0.4 event is detected here.
+        truth = self.d / "truth_cf.tsv"
+        calls = self.d / "calls_cf.tsv"
+        _write(truth,
+               ["event_id","chrom","position","te_family","biological_class","tsd","cellular_fraction","expected_vaf"],
+               [{"event_id":"C1","chrom":"Chr1","position":2000,"te_family":"mPing","biological_class":"somatic_insertion","tsd":"TTA","cellular_fraction":"0.1","expected_vaf":"0.05"},
+                {"event_id":"C2","chrom":"Chr1","position":8000,"te_family":"mPing","biological_class":"somatic_insertion","tsd":"TAA","cellular_fraction":"0.4","expected_vaf":"0.2"}])
+        _write(calls,
+               ["chrom","position","te_family","tsd","strand","status","caller","sample"],
+               [{"chrom":"Chr1","position":8002,"te_family":"mPing","tsd":"TAA","strand":"+","status":"somatic","caller":"relocate3","sample":"S1"}])
+        summary, matches, fps, precision_row = score(truth, calls, sample="S1", caller="relocate3", window=10)
+        by_cf = {r["cellular_fraction"]: r for r in summary}
+        self.assertEqual(set(by_cf), {"0.1", "0.4"})
+        self.assertEqual(by_cf["0.1"]["biological_class"], "somatic_insertion")
+        self.assertEqual(by_cf["0.1"]["truth_events"], 1)
+        self.assertEqual(by_cf["0.1"]["detected_events"], 0)
+        self.assertEqual(by_cf["0.1"]["detection_recall"], 0.0)
+        self.assertEqual(by_cf["0.1"]["expected_vaf"], "0.05")
+        self.assertEqual(by_cf["0.4"]["detected_events"], 1)
+        self.assertEqual(by_cf["0.4"]["detection_recall"], 1.0)
+        self.assertEqual(by_cf["0.4"]["expected_vaf"], "0.2")
+
+    def test_main_writes_precision(self):
+        # 2 of 3 calls match a truth event -> overall_precision 0.666..., FDR 0.333...
+        truth = self.d / "truth_p.tsv"
+        calls = self.d / "calls_p.tsv"
+        outdir = self.d / "report_p"
+        _write(truth,
+               ["event_id","chrom","position","te_family","biological_class","tsd"],
+               [{"event_id":"P1","chrom":"Chr1","position":1000,"te_family":"mPing","biological_class":"homozygous","tsd":"TTA"},
+                {"event_id":"P2","chrom":"Chr1","position":2000,"te_family":"mPing","biological_class":"homozygous","tsd":"TAA"}])
+        _write(calls,
+               ["chrom","position","te_family","tsd","strand","status","caller","sample"],
+               [{"chrom":"Chr1","position":1001,"te_family":"mPing","tsd":"TTA","strand":"+","status":"homozygous","caller":"relocate3","sample":"S1"},
+                {"chrom":"Chr1","position":2001,"te_family":"mPing","tsd":"TAA","strand":"+","status":"homozygous","caller":"relocate3","sample":"S1"},
+                {"chrom":"Chr1","position":9999,"te_family":"mPing","tsd":"XX","strand":"+","status":"homozygous","caller":"relocate3","sample":"S1"}])
+        argv = ["--truth", str(truth), "--calls", str(calls),
+                "--sample", "S1", "--caller", "relocate3",
+                "--window", "10", "--outdir", str(outdir)]
+        self.assertEqual(main(argv), 0)
+        self.assertTrue((outdir / "precision.tsv").exists())
+        with open(outdir / "precision.tsv") as fh:
+            rows = list(csv.DictReader(fh, delimiter="\t"))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["total_calls"], "3")
+        self.assertEqual(rows[0]["matched_calls"], "2")
+        self.assertAlmostEqual(float(rows[0]["overall_precision"]), 2 / 3, places=6)
+        self.assertAlmostEqual(float(rows[0]["false_discovery_rate"]), 1 / 3, places=6)
 
     def test_somatic_status_mapping(self):
         # A matched somatic event: truth biological_class="somatic_insertion",
@@ -45,7 +109,7 @@ class TestScore(unittest.TestCase):
         _write(calls,
                ["chrom","position","te_family","tsd","strand","status","caller","sample"],
                [{"chrom":"Chr1","position":3004,"te_family":"mPing","tsd":"TTA","strand":"+","status":"somatic","caller":"relocate3","sample":"S1"}])
-        summary, matches, fps = score(truth, calls, sample="S1", caller="relocate3", window=10)
+        summary, matches, fps, precision_row = score(truth, calls, sample="S1", caller="relocate3", window=10)
         by_class = {r["biological_class"]: r for r in summary}
         self.assertEqual(by_class["somatic_insertion"]["detected_events"], 1)
         self.assertEqual(by_class["somatic_insertion"]["status_correct_events"], 1)
@@ -64,7 +128,7 @@ class TestScore(unittest.TestCase):
         _write(calls,
                ["chrom","position","te_family","tsd","strand","status","caller","sample"],
                [{"chrom":"Chr1","position":247381,"te_family":"mPing#DNA/Harbinger","tsd":"AAG","strand":"+","status":"homozygous","caller":"relocate3","sample":"S1"}])
-        summary, matches, fps = score(truth, calls, sample="S1", caller="relocate3", window=10)
+        summary, matches, fps, precision_row = score(truth, calls, sample="S1", caller="relocate3", window=10)
         by_class = {r["biological_class"]: r for r in summary}
         self.assertEqual(by_class["homozygous"]["detected_events"], 1)
         self.assertEqual(len(fps), 0)
