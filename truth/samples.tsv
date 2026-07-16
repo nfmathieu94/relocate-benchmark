@@ -1,0 +1,10 @@
+sample	coverage	replicate	r1	r2	control_r1	control_r2
+cov5x_rep1	5	1	reads/cov5x_rep1/R1.fastq	reads/cov5x_rep1/R2.fastq	reads/cov5x_rep1_reference_control/R1.fastq	reads/cov5x_rep1_reference_control/R2.fastq
+cov5x_rep2	5	2	reads/cov5x_rep2/R1.fastq	reads/cov5x_rep2/R2.fastq	reads/cov5x_rep2_reference_control/R1.fastq	reads/cov5x_rep2_reference_control/R2.fastq
+cov5x_rep3	5	3	reads/cov5x_rep3/R1.fastq	reads/cov5x_rep3/R2.fastq	reads/cov5x_rep3_reference_control/R1.fastq	reads/cov5x_rep3_reference_control/R2.fastq
+cov15x_rep1	15	1	reads/cov15x_rep1/R1.fastq	reads/cov15x_rep1/R2.fastq	reads/cov15x_rep1_reference_control/R1.fastq	reads/cov15x_rep1_reference_control/R2.fastq
+cov15x_rep2	15	2	reads/cov15x_rep2/R1.fastq	reads/cov15x_rep2/R2.fastq	reads/cov15x_rep2_reference_control/R1.fastq	reads/cov15x_rep2_reference_control/R2.fastq
+cov15x_rep3	15	3	reads/cov15x_rep3/R1.fastq	reads/cov15x_rep3/R2.fastq	reads/cov15x_rep3_reference_control/R1.fastq	reads/cov15x_rep3_reference_control/R2.fastq
+cov30x_rep1	30	1	reads/cov30x_rep1/R1.fastq	reads/cov30x_rep1/R2.fastq	reads/cov30x_rep1_reference_control/R1.fastq	reads/cov30x_rep1_reference_control/R2.fastq
+cov30x_rep2	30	2	reads/cov30x_rep2/R1.fastq	reads/cov30x_rep2/R2.fastq	reads/cov30x_rep2_reference_control/R1.fastq	reads/cov30x_rep2_reference_control/R2.fastq
+cov30x_rep3	30	3	reads/cov30x_rep3/R1.fastq	reads/cov30x_rep3/R2.fastq	reads/cov30x_rep3_reference_control/R1.fastq	reads/cov30x_rep3_reference_control/R2.fastq
