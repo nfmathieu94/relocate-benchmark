@@ -11,6 +11,9 @@ logs/*
 reports/per_sample/*
 !reports/.gitkeep
 
+# Per-sample resource outputs (regenerable per-run); combined reports/*.tsv stay tracked
+reports/resources/
+
 # Truth completion sentinel (data itself is small + tracked)
 truth/.complete
 
