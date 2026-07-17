@@ -238,3 +238,29 @@ plot_pr <- function(corr, prec) {
          subtitle = "Precision = matched / all calls per sample (global denominator); one point per class",
          colour = NULL)
 }
+
+# B3: dumbbell of RelocaTE2 vs RelocaTE3 detection recall per coverage x class.
+# The grey connector's length is the head-to-head recall gap.
+plot_dumbbell <- function(h2h) {
+  h2h <- h2h %>% dplyr::mutate(
+    relocate2_detection_recall = as.numeric(relocate2_detection_recall),
+    relocate3_detection_recall = as.numeric(relocate3_detection_recall))
+  df <- h2h %>%
+    dplyr::mutate(biological_class = factor(biological_class, levels = class_levels),
+                  row = paste0(coverage, "x  ", class_labs[as.character(biological_class)])) %>%
+    tidyr::pivot_longer(c(relocate2_detection_recall, relocate3_detection_recall),
+                        names_to = "caller", values_to = "recall") %>%
+    dplyr::mutate(caller = pretty_caller(sub("_detection_recall", "", caller))) %>%
+    dplyr::group_by(row, coverage, biological_class, caller) %>%
+    dplyr::summarise(recall = mean(recall), .groups = "drop")
+  ord <- df %>% dplyr::distinct(row, coverage, biological_class) %>%
+    dplyr::arrange(coverage, biological_class)
+  df$row <- factor(df$row, levels = rev(ord$row))
+  ggplot(df, aes(recall, row)) +
+    geom_line(aes(group = row), colour = "grey70", linewidth = 1) +
+    geom_point(aes(colour = caller), size = 3) +
+    scale_color_lab() + scale_x_continuous(limits = c(0, 1), labels = scales::percent) +
+    labs(title = "RelocaTE2 vs RelocaTE3 detection recall",
+         subtitle = "Each row = coverage x class; gap = head-to-head difference",
+         x = "Detection recall", y = NULL, colour = NULL)
+}
