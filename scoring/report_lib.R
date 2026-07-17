@@ -264,3 +264,31 @@ plot_dumbbell <- function(h2h) {
          subtitle = "Each row = coverage x class; gap = head-to-head difference",
          x = "Detection recall", y = NULL, colour = NULL)
 }
+
+# B4: F1 heatmap (harmonic mean of per-class recall and per-sample precision).
+# Precision is the global-denominator per-sample value, averaged per coverage.
+plot_f1 <- function(corr, prec) {
+  corr$caller <- pretty_caller(corr$caller)
+  prec$caller <- pretty_caller(prec$caller)
+  corr <- corr %>% dplyr::mutate(
+    detected_events = as.numeric(detected_events),
+    truth_events = as.numeric(truth_events))
+  prec <- prec %>% dplyr::mutate(overall_precision = as.numeric(overall_precision))
+  rec <- corr %>% dplyr::group_by(caller, coverage, biological_class) %>%
+    dplyr::summarise(recall = sum(detected_events) / sum(truth_events), .groups = "drop")
+  pr <- prec %>% dplyr::group_by(caller, coverage) %>%
+    dplyr::summarise(precision = mean(overall_precision), .groups = "drop")
+  df <- rec %>% dplyr::left_join(pr, by = c("caller", "coverage")) %>%
+    dplyr::mutate(f1 = ifelse(precision + recall > 0,
+                              2 * precision * recall / (precision + recall), 0),
+                  biological_class = factor(biological_class, levels = class_levels),
+                  col = paste0(coverage, "x\n", class_labs[as.character(biological_class)])) %>%
+    dplyr::mutate(col = forcats::fct_reorder(col, coverage * 10 + as.integer(biological_class)))
+  ggplot(df, aes(col, caller, fill = f1)) +
+    geom_tile(colour = "white", linewidth = 0.5) +
+    geom_text(aes(label = sprintf("%.2f", f1)), size = 3) +
+    scale_fill_gradient(low = "#FFF5EB", high = "#7F2704", limits = c(0, 1), name = "F1") +
+    labs(title = "F1 (detection x precision) by condition",
+         subtitle = "Harmonic mean of recall and precision (precision = global-denominator, per sample)",
+         x = NULL, y = NULL)
+}
