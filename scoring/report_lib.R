@@ -175,6 +175,32 @@ plot_missed_profile <- function(matches) {
          x = NULL, y = "Detection recall", fill = NULL)
 }
 
+# Canonical per-condition metrics shared by B2 (PR) and B4 (F1) so the two
+# figures never disagree on recall/precision for the same caller x coverage x class.
+cond_metrics <- function(corr, prec) {
+  corr$caller <- pretty_caller(corr$caller); prec$caller <- pretty_caller(prec$caller)
+  rec <- corr %>%
+    dplyr::group_by(caller, coverage, biological_class) %>%
+    dplyr::summarise(recall = sum(as.numeric(detected_events)) /
+                              sum(as.numeric(truth_events)), .groups = "drop")
+  pr <- prec %>%
+    dplyr::group_by(caller, coverage) %>%
+    dplyr::summarise(precision = mean(as.numeric(overall_precision), na.rm = TRUE),
+                     .groups = "drop")
+  rec %>% dplyr::left_join(pr, by = c("caller", "coverage")) %>%
+    dplyr::mutate(coverage = as.integer(coverage),
+                  biological_class = factor(biological_class, levels = class_levels),
+                  f1 = ifelse(precision + recall > 0,
+                              2 * precision * recall / (precision + recall), 0))
+}
+
+# Numeric-ordered coverage factor so panels/labels read 5x, 15x, 30x (not
+# alphabetical 15x, 30x, 5x).
+cov_factor <- function(coverage) {
+  cov <- as.integer(coverage)
+  factor(paste0(cov, "x"), levels = paste0(sort(unique(cov)), "x"))
+}
+
 # B1: detection recall vs expected VAF with per-group logistic fit (LOD50).
 # Pools hom/het/somatic onto a single expected-VAF axis; fits recall ~ log10(vaf)
 # per caller x coverage; the VAF at 50% recall is the limit of detection.
@@ -199,10 +225,14 @@ plot_lod <- function(matches) {
       if (is.null(g)) g <- .x[0, c("vaf", "recall")]
       g
     }) %>% dplyr::ungroup()
+  # Same numeric-ordered coverage factor levels on both frames.
+  lvls <- paste0(sort(unique(as.integer(pts$coverage))), "x")
+  pts$covx    <- factor(paste0(as.integer(pts$coverage), "x"), levels = lvls)
+  curves$covx <- factor(paste0(as.integer(curves$coverage), "x"), levels = lvls)
   ggplot(pts, aes(vaf, recall, colour = caller)) +
     geom_line(data = curves, aes(vaf, recall), linewidth = 0.9) +
     geom_point(aes(size = n), alpha = 0.8) +
-    facet_wrap(~ paste0(coverage, "x")) +
+    facet_wrap(~ covx) +
     scale_color_lab() + scale_size_continuous(guide = "none") +
     scale_x_log10() + scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
     labs(title = "Detection sensitivity vs variant allele frequency",
@@ -214,22 +244,10 @@ plot_lod <- function(matches) {
 # Recall from correctness (per-class), precision from precision.tsv (per-sample,
 # GLOBAL all-calls denominator - a documented caveat surfaced in the subtitle).
 plot_pr <- function(corr, prec) {
-  corr$caller <- pretty_caller(corr$caller)
-  prec$caller <- pretty_caller(prec$caller)
-  corr <- corr %>% dplyr::mutate(
-    detected_events = as.numeric(detected_events),
-    truth_events = as.numeric(truth_events))
-  prec <- prec %>% dplyr::mutate(overall_precision = as.numeric(overall_precision))
-  rec <- corr %>%
-    dplyr::group_by(caller, coverage, replicate, biological_class) %>%
-    dplyr::summarise(recall = sum(detected_events) / sum(truth_events), .groups = "drop")
-  pr <- prec %>% dplyr::select(caller, coverage, replicate, precision = overall_precision)
-  df <- rec %>% dplyr::left_join(pr, by = c("caller", "coverage", "replicate")) %>%
-    dplyr::group_by(caller, coverage, biological_class) %>%
-    dplyr::summarise(recall = mean(recall), precision = mean(precision), .groups = "drop") %>%
-    dplyr::mutate(biological_class = factor(biological_class, levels = class_levels))
+  df <- cond_metrics(corr, prec) %>%
+    dplyr::mutate(covx = cov_factor(coverage))
   ggplot(df, aes(recall, precision, colour = caller, shape = biological_class)) +
-    geom_point(size = 3, alpha = 0.9) + facet_wrap(~ paste0(coverage, "x")) +
+    geom_point(size = 3, alpha = 0.9) + facet_wrap(~ covx) +
     scale_color_lab() +
     scale_shape_discrete(labels = class_labs, name = NULL) +
     scale_x_continuous(limits = c(0, 1), labels = scales::percent) +
@@ -252,7 +270,7 @@ plot_dumbbell <- function(h2h) {
                         names_to = "caller", values_to = "recall") %>%
     dplyr::mutate(caller = pretty_caller(sub("_detection_recall", "", caller))) %>%
     dplyr::group_by(row, coverage, biological_class, caller) %>%
-    dplyr::summarise(recall = mean(recall), .groups = "drop")
+    dplyr::summarise(recall = mean(recall, na.rm = TRUE), .groups = "drop")
   ord <- df %>% dplyr::distinct(row, coverage, biological_class) %>%
     dplyr::arrange(coverage, biological_class)
   df$row <- factor(df$row, levels = rev(ord$row))
@@ -268,22 +286,12 @@ plot_dumbbell <- function(h2h) {
 # B4: F1 heatmap (harmonic mean of per-class recall and per-sample precision).
 # Precision is the global-denominator per-sample value, averaged per coverage.
 plot_f1 <- function(corr, prec) {
-  corr$caller <- pretty_caller(corr$caller)
-  prec$caller <- pretty_caller(prec$caller)
-  corr <- corr %>% dplyr::mutate(
-    detected_events = as.numeric(detected_events),
-    truth_events = as.numeric(truth_events))
-  prec <- prec %>% dplyr::mutate(overall_precision = as.numeric(overall_precision))
-  rec <- corr %>% dplyr::group_by(caller, coverage, biological_class) %>%
-    dplyr::summarise(recall = sum(detected_events) / sum(truth_events), .groups = "drop")
-  pr <- prec %>% dplyr::group_by(caller, coverage) %>%
-    dplyr::summarise(precision = mean(overall_precision), .groups = "drop")
-  df <- rec %>% dplyr::left_join(pr, by = c("caller", "coverage")) %>%
-    dplyr::mutate(f1 = ifelse(precision + recall > 0,
-                              2 * precision * recall / (precision + recall), 0),
-                  biological_class = factor(biological_class, levels = class_levels),
-                  col = paste0(coverage, "x\n", class_labs[as.character(biological_class)])) %>%
-    dplyr::mutate(col = forcats::fct_reorder(col, coverage * 10 + as.integer(biological_class)))
+  df <- cond_metrics(corr, prec) %>%
+    dplyr::mutate(col = paste0(coverage, "x\n", class_labs[as.character(biological_class)]))
+  # Explicit column order: coverage ascending, then class in class_levels order.
+  ord <- df %>% dplyr::distinct(col, coverage, biological_class) %>%
+    dplyr::arrange(coverage, biological_class)
+  df$col <- factor(df$col, levels = ord$col)
   ggplot(df, aes(col, caller, fill = f1)) +
     geom_tile(colour = "white", linewidth = 0.5) +
     geom_text(aes(label = sprintf("%.2f", f1)), size = 3) +
