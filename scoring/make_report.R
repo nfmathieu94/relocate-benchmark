@@ -162,7 +162,9 @@ standalone <- list(lod50 = pB1, precision_recall = pB2, confusion_matrix = pA1)
 for (nm in names(standalone)) {
   p <- standalone[[nm]] + theme_lab()
   if (exists("save_figure")) {
-    tryCatch(save_figure(p, file.path(fig_dir, nm)),
+    # nature_double (183 mm) — these are 2-3 panel figures; nature_single (89 mm)
+    # is too cramped for the facets and tile text.
+    tryCatch(save_figure(p, file.path(fig_dir, nm), size = "nature_double"),
              error = function(e) ggplot2::ggsave(file.path(fig_dir, paste0(nm, ".png")),
                                                  p, width = 9, height = 6, dpi = 300))
   } else {
