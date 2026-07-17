@@ -14,7 +14,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SLURM_SUBMIT_DIR:-$SCRIPT_DIR/..}"
 
-PY=python3.12
+if command -v pixi >/dev/null 2>&1 && [[ -f env/benchmark/pixi.toml ]]; then
+  PY=(pixi run --manifest-path env/benchmark/pixi.toml python3)
+else
+  PY=(python3.12)
+fi
 CONFIG="${CONFIG:-config/benchmark.toml}"
 
 # ---------------------------------------------------------------------------
@@ -61,8 +65,8 @@ filters the full array is submitted. Example:
 Aggregation now runs automatically after the array (a dependent SLURM job),
 unless --no-aggregate is given. If you skip it, aggregate manually with:
 
-  $PY scoring/combine_reports.py --report-root reports --samples truth/samples.tsv
-  $PY scoring/compare_callers.py --correctness reports/correctness.tsv --outdir reports
+  ${PY[*]} scoring/combine_reports.py --report-root reports --samples truth/samples.tsv
+  ${PY[*]} scoring/compare_callers.py --correctness reports/correctness.tsv --outdir reports
 EOF
 }
 
@@ -80,8 +84,8 @@ if [[ -f truth/.complete ]]; then
   echo "[$(date)] truth already exported (truth/.complete present); skipping export"
 else
   echo "[$(date)] exporting truth from panel"
-  eval "$("$PY" pipeline/config_env.py --config "$CONFIG" globals)"
-  "$PY" scoring/export_truth.py --panel-root "$PANEL_ROOT" --outdir truth
+  eval "$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" globals)"
+  "${PY[@]}" scoring/export_truth.py --panel-root "$PANEL_ROOT" --outdir truth
 fi
 
 # ---------------------------------------------------------------------------
@@ -95,14 +99,14 @@ if [[ -n "$FILTER_CALLER" || -n "$FILTER_COVERAGE" || -n "$FILTER_SAMPLE" || -n 
   [[ -n "$FILTER_SAMPLE" ]]    && IDX_ARGS+=(--sample "$FILTER_SAMPLE")
   [[ -n "$FILTER_REPLICATE" ]] && IDX_ARGS+=(--replicate "$FILTER_REPLICATE")
 
-  ARRAY="$("$PY" pipeline/config_env.py --config "$CONFIG" indices "${IDX_ARGS[@]}")"
+  ARRAY="$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" indices "${IDX_ARGS[@]}")"
   if [[ -z "$ARRAY" ]]; then
     echo "ERROR: no tasks match the given filters; nothing to submit" >&2
     exit 1
   fi
   echo "[$(date)] filtered submission; array indices: $ARRAY"
 else
-  N="$("$PY" pipeline/config_env.py --config "$CONFIG" count)"
+  N="$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" count)"
   if (( N < 1 )); then
     echo "ERROR: no benchmark tasks (count=$N); check enabled callers and manifest" >&2
     exit 1
@@ -132,8 +136,8 @@ if (( NO_AGGREGATE == 1 )); then
 Array job $ARRAY_JOB submitted (array=$ARRAY).
 Aggregation skipped (--no-aggregate). After ALL array tasks finish, run:
 
-  $PY scoring/combine_reports.py --report-root reports --samples truth/samples.tsv
-  $PY scoring/compare_callers.py --correctness reports/correctness.tsv --outdir reports
+  ${PY[*]} scoring/combine_reports.py --report-root reports --samples truth/samples.tsv
+  ${PY[*]} scoring/compare_callers.py --correctness reports/correctness.tsv --outdir reports
 
 EOF
 else

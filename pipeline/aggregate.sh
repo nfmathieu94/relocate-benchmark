@@ -41,8 +41,15 @@ echo "[$(date)] comparing callers"
 PDF="reports/benchmark_report.pdf"
 if [[ -f scoring/make_report.R ]]; then
   echo "[$(date)] rendering PDF report (best-effort)"
-  module load R || true
-  if ! Rscript scoring/make_report.R reports "$PDF"; then
+  BENCH_ENV="env/benchmark/pixi.toml"
+  if command -v pixi >/dev/null 2>&1 && [[ -f "$BENCH_ENV" ]]; then
+    RUN_R=(pixi run --manifest-path "$BENCH_ENV" Rscript)
+  else
+    echo "WARN: benchmark pixi env unavailable; using unpinned module R" >&2
+    command -v module >/dev/null 2>&1 && { module load R || true; }
+    RUN_R=(Rscript)
+  fi
+  if ! "${RUN_R[@]}" scoring/make_report.R reports "$PDF"; then
     echo "WARN: PDF report step failed" >&2
   fi
 else
