@@ -110,3 +110,31 @@ plot_breakpoint <- function(matches) {
          x = "Distance to true position (bp)", y = "Cumulative fraction of calls",
          colour = NULL)
 }
+
+# A3: per-event caller agreement bar (which caller(s) detected each truth event).
+# Filter blank event_id so the "Neither" bucket counts only genuine truth events.
+plot_intersection <- function(matches) {
+  callers <- sort(unique(matches$caller))
+  det <- matches %>%
+    dplyr::filter(event_id != "") %>%
+    dplyr::group_by(sample, event_id, caller) %>%
+    dplyr::summarise(hit = as.integer(any(matched == 1)), .groups = "drop") %>%
+    tidyr::pivot_wider(names_from = caller, values_from = hit, values_fill = 0)
+  set_label <- function(row) {
+    got <- callers[as.logical(unlist(row[callers]))]
+    if (length(got) == 0) "Neither"
+    else if (length(got) == length(callers)) "Both"
+    else paste0(got, "-only")
+  }
+  det$set <- apply(det, 1, set_label)
+  df <- det %>% dplyr::count(set, name = "n") %>%
+    dplyr::mutate(set = forcats::fct_reorder(set, n))
+  ggplot(df, aes(set, n, fill = set)) +
+    geom_col(width = 0.7, show.legend = FALSE) +
+    geom_text(aes(label = n), hjust = -0.15, size = 3.4) +
+    coord_flip() +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+    labs(title = "Per-event caller agreement",
+         subtitle = "Truth events by which caller(s) detected them (pooled over all samples)",
+         x = NULL, y = "Truth events")
+}
