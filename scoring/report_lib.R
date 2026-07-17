@@ -18,6 +18,7 @@ for (f in c("theme_lab.R", "palettes.R", "figure_sizes.R", "save_figure.R")) {
 }
 if (!exists("theme_lab")) theme_lab <- function(...) theme_gray()
 if (!exists("scale_color_lab")) scale_color_lab <- function(...) scale_colour_hue()
+if (!exists("scale_fill_lab")) scale_fill_lab <- function(...) scale_fill_hue()
 
 read_tsv <- function(p) read.delim(p, sep = "\t", stringsAsFactors = FALSE, check.names = FALSE)
 
@@ -82,7 +83,7 @@ plot_confusion <- function(matches) {
     dplyr::mutate(called = factor(called, levels = lvls)) %>%
     dplyr::count(caller, truth_class, called, name = "n", .drop = FALSE) %>%
     dplyr::group_by(caller, truth_class) %>%
-    dplyr::mutate(row_frac = n / sum(n)) %>% dplyr::ungroup()
+    dplyr::mutate(row_frac = if (sum(n) > 0) n / sum(n) else 0) %>% dplyr::ungroup()
   # Readable labels for known statuses; fall back to raw value otherwise.
   status_lab <- c(homozygous = "Hom", heterozygous = "Het",
                   `homozygous/excision_no_footprint` = "Hom (excision)",
@@ -112,7 +113,7 @@ plot_breakpoint <- function(matches) {
   ggplot(df, aes(distance_bp, colour = caller)) +
     stat_ecdf(linewidth = 0.9) + facet_wrap(~coverage) +
     scale_color_lab() +
-    scale_x_continuous(limits = c(0, 20)) +
+    coord_cartesian(xlim = c(0, 20)) +
     scale_y_continuous(labels = scales::percent) +
     labs(title = "Breakpoint positional accuracy",
          subtitle = "ECDF of |called - true| position for matched events; steeper/left = better",
@@ -129,6 +130,7 @@ plot_intersection <- function(matches) {
     dplyr::group_by(sample, event_id, caller) %>%
     dplyr::summarise(hit = as.integer(any(matched == 1)), .groups = "drop") %>%
     tidyr::pivot_wider(names_from = caller, values_from = hit, values_fill = 0)
+  callers <- intersect(callers, names(det))               # only materialized caller columns
   hits  <- as.matrix(det[, callers, drop = FALSE]) == 1   # logical matrix, no char coercion
   n_hit <- rowSums(hits)
   label_row <- function(i) {
@@ -153,7 +155,9 @@ plot_intersection <- function(matches) {
 plot_missed_profile <- function(matches) {
   df <- matches %>%
     dplyr::mutate(
-      ambiguous_tsd = ifelse(grepl("^N+$", tsd), "Ambiguous TSD (N)", "Defined TSD"),
+      ambiguous_tsd = dplyr::case_when(is.na(tsd) | tsd == "" ~ "Unknown TSD",
+                                       grepl("^N+$", tsd) ~ "Ambiguous TSD (N)",
+                                       TRUE ~ "Defined TSD"),
       strand = ifelse(strand %in% c("+","-"), strand, "?")) %>%
     tidyr::pivot_longer(c(strand, ambiguous_tsd),
                         names_to = "facet", values_to = "level") %>%
