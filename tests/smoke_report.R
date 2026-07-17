@@ -18,3 +18,6 @@ stopifnot(is.integer(matches$coverage) || is.numeric(matches$coverage))
 files <- Sys.glob(file.path(reports_dir, "per_sample", "*", "*", "matches.tsv"))
 n_expected <- sum(sapply(files, function(f) nrow(read_tsv(f))))
 stopifnot(nrow(matches) == n_expected)
+
+# ---- plot-builder smoke checks -------------------------------------------
+check("A1 confusion", plot_confusion(matches))
