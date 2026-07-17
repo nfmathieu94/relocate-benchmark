@@ -74,23 +74,32 @@ plot_confusion <- function(matches) {
     dplyr::mutate(
       truth_class = factor(biological_class, levels = class_levels),
       called = ifelse(matched == 0 | is.na(call_status) | call_status == "",
-                      "missed", call_status),
-      called = factor(called, levels = c("homozygous","heterozygous","missed"))) %>%
-    dplyr::filter(!is.na(truth_class)) %>%
-    dplyr::count(caller, truth_class, called, name = "n") %>%
+                      "missed", call_status)) %>%
+    dplyr::filter(!is.na(truth_class))
+  # Data-driven called-status axis: every status present, "missed" forced last.
+  lvls <- c(sort(setdiff(unique(df$called), "missed")), "missed")
+  df <- df %>%
+    dplyr::mutate(called = factor(called, levels = lvls)) %>%
+    dplyr::count(caller, truth_class, called, name = "n", .drop = FALSE) %>%
     dplyr::group_by(caller, truth_class) %>%
     dplyr::mutate(row_frac = n / sum(n)) %>% dplyr::ungroup()
+  # Readable labels for known statuses; fall back to raw value otherwise.
+  status_lab <- c(homozygous = "Hom", heterozygous = "Het",
+                  `homozygous/excision_no_footprint` = "Hom (excision)",
+                  somatic_insertion = "Somatic", missed = "Missed")
+  labs_vec <- ifelse(lvls %in% names(status_lab), status_lab[lvls], lvls)
   ggplot(df, aes(called, truth_class, fill = row_frac)) +
     geom_tile(colour = "white", linewidth = 0.5) +
     geom_text(aes(label = sprintf("%d\n%.0f%%", n, 100 * row_frac)), size = 3) +
     facet_wrap(~caller) +
     scale_fill_gradient(low = "#F7FBFF", high = "#08519C", labels = scales::percent,
                         limits = c(0, 1), name = "Row %") +
-    scale_x_discrete(labels = c(homozygous="Hom", heterozygous="Het", missed="Missed")) +
+    scale_x_discrete(labels = labs_vec) +
     scale_y_discrete(labels = class_labs) +
     labs(title = "Genotype / detection confusion",
          subtitle = "Row-normalised: where each truth class's events land (pooled over coverage)",
-         x = "Called status", y = "Truth class")
+         x = "Called status", y = "Truth class") +
+    theme(axis.text.x = element_text(angle = 20, hjust = 1))
 }
 
 # A2: breakpoint positional accuracy ECDF (matched events, per coverage).
