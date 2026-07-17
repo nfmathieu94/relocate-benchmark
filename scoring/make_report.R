@@ -18,6 +18,8 @@ corr <- read_tsv(file.path(reports_dir, "correctness.tsv"))
 prec <- read_tsv(file.path(reports_dir, "precision.tsv"))
 res_path <- file.path(reports_dir, "resources.tsv")
 res <- if (file.exists(res_path) && file.info(res_path)$size > 0) read_tsv(res_path) else NULL
+matches <- load_matches(reports_dir)
+h2h <- read_tsv(file.path(reports_dir, "head_to_head.tsv"))
 
 corr <- corr %>%
   mutate(caller = pretty_caller(caller),
@@ -100,7 +102,19 @@ p4 <- line_sem(som) +
        subtitle = "Lower cellular fraction = lower variant allele frequency = harder (mean ± SEM)",
        x = "Coverage (x)", y = "Somatic recall")
 
-pages <- list(p1, p2, p3, p4)
+# ---- Publication pages (B1-B4) and diagnostic pages (A1-A4) ---------------
+pB1 <- plot_lod(matches)
+pB2 <- plot_pr(corr, prec)
+pB3 <- plot_dumbbell(h2h)
+pB4 <- plot_f1(corr, prec)
+pA1 <- plot_confusion(matches)
+pA2 <- plot_breakpoint(matches)
+pA3 <- plot_intersection(matches)
+pA4 <- plot_missed_profile(matches)
+
+# Section order: Headline -> Diagnostics -> Resources (appended below if present).
+pages <- list(p1, p2, p3, p4, pB1, pB2, pB3, pB4,  # Headline
+              pA1, pA2, pA3, pA4)                    # Diagnostics
 
 # ---- Page 5: resources (optional) ----------------------------------------
 if (!is.null(res)) {
@@ -137,3 +151,21 @@ for (p in pages) {
 }
 invisible(dev.off())
 cat(sprintf("Wrote %s (%d pages)\n", out_pdf, length(pages)))
+
+# ---- standalone figure exports -------------------------------------------
+# save_figure() (from the ggplot-figures skill) writes BOTH a cairo PDF and a
+# PNG at consistent dimensions; the tryCatch falls back to a bare PNG if the
+# skill helper is unavailable or errors.
+fig_dir <- file.path(reports_dir, "figures")
+dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
+standalone <- list(lod50 = pB1, precision_recall = pB2, confusion_matrix = pA1)
+for (nm in names(standalone)) {
+  p <- standalone[[nm]] + theme_lab()
+  if (exists("save_figure")) {
+    tryCatch(save_figure(p, file.path(fig_dir, nm)),
+             error = function(e) ggplot2::ggsave(file.path(fig_dir, paste0(nm, ".png")),
+                                                 p, width = 9, height = 6, dpi = 300))
+  } else {
+    ggplot2::ggsave(file.path(fig_dir, paste0(nm, ".png")), p, width = 9, height = 6, dpi = 300)
+  }
+}
