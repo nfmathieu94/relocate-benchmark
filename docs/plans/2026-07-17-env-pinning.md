@@ -152,6 +152,16 @@ done
 
 ## Task 3: RelocaTE2 pixi env
 
+> **REVISED 2026-07-17 (done):** RT2 CANNOT be a pixi env — `relocate2 2.0.1` is a
+> dead Python-2.7 bioconda package whose closure no longer resolves (and it
+> hard-pins bwa 0.6.2). Per user decision, RT2 is instead frozen via a
+> **pinned-module manifest** (`callers/relocate2/pinned-modules.txt` →
+> `relocate2/2.0.1` + `bwa/0.7.19`); `env.sh` reads the pins and keeps the
+> pkg-bin-before-modern-bwa load order. Portable freeze deferred to the Phase 2
+> Apptainer image. Tasks 3 and 4 were completed together as this pinned-module
+> change (commit 85754c8). The pixi manifest below is retained for historical
+> context only.
+
 **Files:**
 - Create: `callers/relocate2/pixi.toml`
 - Create (generated): `callers/relocate2/pixi.lock`
@@ -191,6 +201,11 @@ Expected: all four present; bwa reports 0.7.19.
 ---
 
 ## Task 4: RelocaTE2 env.sh -> thin pixi activator
+
+> **REVISED 2026-07-17 (done in Task 3's commit 85754c8):** since RT2 uses pinned
+> modules (not pixi), `env.sh` was rewritten to read `pinned-modules.txt` and load
+> the pinned modules in order, not to activate a pixi env. See the Task 3 revision
+> note. The pixi-activator template below does not apply to RT2.
 
 **Files:** Modify `callers/relocate2/env.sh`
 
