@@ -138,3 +138,25 @@ plot_intersection <- function(matches) {
          subtitle = "Truth events by which caller(s) detected them (pooled over all samples)",
          x = NULL, y = "Truth events")
 }
+
+# A4: missed-event profile - detection recall stratified by strand and TSD.
+plot_missed_profile <- function(matches) {
+  df <- matches %>%
+    dplyr::mutate(
+      ambiguous_tsd = ifelse(grepl("^N+$", tsd), "Ambiguous TSD (N)", "Defined TSD"),
+      strand = ifelse(strand %in% c("+","-"), strand, "?")) %>%
+    tidyr::pivot_longer(c(strand, ambiguous_tsd),
+                        names_to = "facet", values_to = "level") %>%
+    dplyr::group_by(caller, facet, level) %>%
+    dplyr::summarise(recall = mean(matched == 1), n = dplyr::n(), .groups = "drop") %>%
+    dplyr::mutate(facet = dplyr::recode(facet, strand = "Strand",
+                                        ambiguous_tsd = "TSD definition"))
+  ggplot(df, aes(level, recall, fill = caller)) +
+    geom_col(position = position_dodge(0.8), width = 0.7) +
+    facet_wrap(~facet, scales = "free_x") +
+    scale_fill_lab() +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    labs(title = "What do missed events have in common?",
+         subtitle = "Detection recall stratified by strand and TSD ambiguity (pooled)",
+         x = NULL, y = "Detection recall", fill = NULL)
+}
