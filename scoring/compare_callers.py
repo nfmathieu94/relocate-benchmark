@@ -2,10 +2,11 @@
 """Produce an N-caller-safe head-to-head comparison from combined correctness.
 
 Reads a combined ``correctness.tsv`` (as written by ``combine_reports.py``) and
-pivots it to one row per ``(coverage, replicate, biological_class)`` with, for
-each caller present, ``<caller>_detection_recall``, ``<caller>_precision`` and
-``<caller>_status_accuracy_given_detected`` columns, plus a recall delta column
-``<callerA>_minus_<callerB>_recall`` for every unordered pair of callers.
+pivots it to one row per ``(coverage, replicate, biological_class,
+cellular_fraction)`` with, for each caller present,
+``<caller>_detection_recall`` and ``<caller>_status_accuracy_given_detected``
+columns, plus a recall delta column ``<callerA>_minus_<callerB>_recall`` for
+every unordered pair of callers.
 """
 from __future__ import annotations
 
@@ -15,8 +16,9 @@ import itertools
 from collections import OrderedDict
 from pathlib import Path
 
-# Per-caller metrics carried into the wide table.
-_METRICS = ("detection_recall", "precision", "status_accuracy_given_detected")
+# Per-caller metrics carried into the wide table. precision is no longer a
+# per-class metric (it is now a per-sample summary in precision.tsv).
+_METRICS = ("detection_recall", "status_accuracy_given_detected")
 
 
 def _read_tsv(path):
@@ -42,18 +44,20 @@ def _to_float(value):
 
 def compare(rows):
     callers = sorted({r.get("caller", "") for r in rows if r.get("caller", "")})
-    # Group cells by (coverage, replicate, biological_class).
+    # Group cells by (coverage, replicate, biological_class, cellular_fraction).
     groups = OrderedDict()
     for r in rows:
-        key = (r.get("coverage", ""), r.get("replicate", ""), r.get("biological_class", ""))
+        key = (r.get("coverage", ""), r.get("replicate", ""),
+               r.get("biological_class", ""), r.get("cellular_fraction", ""))
         groups.setdefault(key, {})[r.get("caller", "")] = r
 
     out_rows = []
-    for (coverage, replicate, cls), by_caller in groups.items():
+    for (coverage, replicate, cls, cell_frac), by_caller in groups.items():
         out = OrderedDict()
         out["coverage"] = coverage
         out["replicate"] = replicate
         out["biological_class"] = cls
+        out["cellular_fraction"] = cell_frac
         for caller in callers:
             cell = by_caller.get(caller)
             for metric in _METRICS:
@@ -68,11 +72,12 @@ def compare(rows):
         _int_or_inf(o["coverage"]),
         _int_or_inf(o["replicate"]),
         o["biological_class"],
+        o["cellular_fraction"],
     ))
 
     # Column order: keys of the first row (stable across all rows).
     fields = list(out_rows[0].keys()) if out_rows else [
-        "coverage", "replicate", "biological_class"]
+        "coverage", "replicate", "biological_class", "cellular_fraction"]
     return fields, out_rows
 
 

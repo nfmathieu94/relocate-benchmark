@@ -129,6 +129,81 @@ class TestConfigEnv(unittest.TestCase):
             out = config_env.run(["--config", str(cfg), "count"])
             self.assertEqual(out.strip(), "4")
 
+    # Canonical task order (2 callers x 2 samples):
+    #   0: relocate2 s1 cov5  rep1
+    #   1: relocate2 s2 cov15 rep2
+    #   2: relocate3 s1 cov5  rep1
+    #   3: relocate3 s2 cov15 rep2
+    def test_indices_no_filter(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(["--config", str(cfg), "indices"])
+            self.assertEqual(out.strip(), "0,1,2,3")
+
+    def test_indices_caller(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(
+                ["--config", str(cfg), "indices", "--caller", "relocate3"]
+            )
+            self.assertEqual(out.strip(), "2,3")
+
+    def test_indices_coverage(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(
+                ["--config", str(cfg), "indices", "--coverage", "5"]
+            )
+            self.assertEqual(out.strip(), "0,2")
+
+    def test_indices_combined(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(
+                [
+                    "--config",
+                    str(cfg),
+                    "indices",
+                    "--caller",
+                    "relocate3",
+                    "--coverage",
+                    "15",
+                ]
+            )
+            self.assertEqual(out.strip(), "3")
+
+    def test_indices_sample(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(
+                ["--config", str(cfg), "indices", "--sample", "s2"]
+            )
+            self.assertEqual(out.strip(), "1,3")
+
+    def test_indices_replicate(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(
+                ["--config", str(cfg), "indices", "--replicate", "1"]
+            )
+            self.assertEqual(out.strip(), "0,2")
+
+    def test_indices_comma_list(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(
+                ["--config", str(cfg), "indices", "--coverage", "5,15"]
+            )
+            self.assertEqual(out.strip(), "0,1,2,3")
+
+    def test_indices_no_match(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg, _ = _make_config(Path(td))
+            out = config_env.run(
+                ["--config", str(cfg), "indices", "--caller", "nope"]
+            )
+            self.assertEqual(out.strip(), "")
+
 
 if __name__ == "__main__":
     unittest.main()
