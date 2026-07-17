@@ -24,3 +24,7 @@ truth/.complete
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# pixi materialized environments (regenerable from committed pixi.lock)
+.pixi/
+**/.pixi/
