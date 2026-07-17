@@ -92,3 +92,21 @@ plot_confusion <- function(matches) {
          subtitle = "Row-normalised: where each truth class's events land (pooled over coverage)",
          x = "Called status", y = "Truth class")
 }
+
+# A2: breakpoint positional accuracy ECDF (matched events, per coverage).
+plot_breakpoint <- function(matches) {
+  df <- matches %>%
+    dplyr::filter(matched == 1, !is.na(distance_bp)) %>%
+    dplyr::mutate(distance_bp = as.numeric(distance_bp),
+                  coverage = factor(paste0(coverage, "x"),
+                                    levels = paste0(sort(unique(coverage)), "x")))
+  ggplot(df, aes(distance_bp, colour = caller)) +
+    stat_ecdf(linewidth = 0.9) + facet_wrap(~coverage) +
+    scale_color_lab() +
+    scale_x_continuous(limits = c(0, 20)) +
+    scale_y_continuous(labels = scales::percent) +
+    labs(title = "Breakpoint positional accuracy",
+         subtitle = "ECDF of |called - true| position for matched events; steeper/left = better",
+         x = "Distance to true position (bp)", y = "Cumulative fraction of calls",
+         colour = NULL)
+}

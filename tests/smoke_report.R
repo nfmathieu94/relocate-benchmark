@@ -21,3 +21,4 @@ stopifnot(nrow(matches) == n_expected)
 
 # ---- plot-builder smoke checks -------------------------------------------
 check("A1 confusion", plot_confusion(matches))
+check("A2 breakpoint", plot_breakpoint(matches))
