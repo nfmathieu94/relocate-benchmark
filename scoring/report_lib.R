@@ -129,13 +129,14 @@ plot_intersection <- function(matches) {
     dplyr::group_by(sample, event_id, caller) %>%
     dplyr::summarise(hit = as.integer(any(matched == 1)), .groups = "drop") %>%
     tidyr::pivot_wider(names_from = caller, values_from = hit, values_fill = 0)
-  set_label <- function(row) {
-    got <- callers[as.logical(unlist(row[callers]))]
-    if (length(got) == 0) "Neither"
-    else if (length(got) == length(callers)) "Both"
-    else paste0(got, "-only")
+  hits  <- as.matrix(det[, callers, drop = FALSE]) == 1   # logical matrix, no char coercion
+  n_hit <- rowSums(hits)
+  label_row <- function(i) {
+    if (n_hit[i] == 0) return("Neither")
+    if (n_hit[i] == length(callers)) return("Both")
+    paste0(paste(callers[hits[i, ]], collapse = "+"), "-only")
   }
-  det$set <- apply(det, 1, set_label)
+  det$set <- vapply(seq_len(nrow(det)), label_row, character(1))
   df <- det %>% dplyr::count(set, name = "n") %>%
     dplyr::mutate(set = forcats::fct_reorder(set, n))
   ggplot(df, aes(set, n, fill = set)) +
