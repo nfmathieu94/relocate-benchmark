@@ -86,7 +86,7 @@ plot_confusion <- function(matches) {
     dplyr::mutate(row_frac = if (sum(n) > 0) n / sum(n) else 0) %>% dplyr::ungroup()
   # Readable labels for known statuses; fall back to raw value otherwise.
   status_lab <- c(homozygous = "Hom", heterozygous = "Het",
-                  `homozygous/excision_no_footprint` = "Hom (excision)",
+                  `homozygous/excision_no_footprint` = "Hom-exc",
                   somatic_insertion = "Somatic", missed = "Missed")
   labs_vec <- ifelse(lvls %in% names(status_lab), status_lab[lvls], lvls)
   ggplot(df, aes(called, truth_class, fill = row_frac)) +
@@ -101,8 +101,7 @@ plot_confusion <- function(matches) {
     scale_y_discrete(labels = class_labs) +
     labs(title = "Genotype / detection confusion",
          subtitle = "Row-normalised: where each truth class's events land (pooled over coverage)",
-         x = "Called status", y = "Truth class") +
-    theme(axis.text.x = element_text(angle = 20, hjust = 1))
+         x = "Called status", y = "Truth class")
 }
 
 # A2: breakpoint positional accuracy ECDF (matched events, per coverage).
