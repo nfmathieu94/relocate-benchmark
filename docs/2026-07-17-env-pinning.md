@@ -128,7 +128,30 @@ cd callers/relocate3 && pixi install     # resolves + updates pixi.lock
 # commit the updated pixi.toml + pixi.lock
 ```
 
+## Verification (2026-07-17)
+
+End-to-end checks, all green:
+
+- `bash pipeline/setup_envs.sh` provisions both pixi envs idempotently (RT2
+  correctly skipped).
+- **RT3 env** — `source callers/relocate3/env.sh` resolves `relocaTE3` and
+  `bcftools` from `callers/relocate3/.pixi/envs/default/bin/`; `relocaTE3 --help`
+  OK. Resolved samtools/bcftools 1.24, minimap2 2.31.
+- **RT2 env** — `source callers/relocate2/env.sh` resolves `relocaTE2.py` from
+  `relocate2/2.0.1`, `bwa 0.7.19-r1273` (modern bwa wins), `blat`/`samtools 1.9`
+  from the module; `relocaTE2.py -h` OK.
+- **Benchmark env** — `pixi run --manifest-path env/benchmark/pixi.toml Rscript
+  tests/smoke_report.R` → all 8 builder checks OK; full report renders 13 pages.
+  Resolved R 4.5.3, python 3.12.13.
+
+Deferred acceptance: a full one-sample-per-caller benchmark run under the frozen
+envs (produces `calls.normalized.tsv`) is a ~28-min SLURM job per caller and was
+not run inline. Launch it as final acceptance via
+`bash pipeline/submit_benchmark.sh --coverage 5` (or a single filtered task)
+and confirm both callers still produce matching results.
+
 ## Next steps
 
+- Run the deferred one-sample-per-caller SLURM acceptance (above).
 - Phase 2: build an Apptainer image so RelocaTE2 (and the whole stack) is
   portable off-cluster, replacing the pinned-modules freeze.
