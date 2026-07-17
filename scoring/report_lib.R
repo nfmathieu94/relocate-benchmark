@@ -209,3 +209,32 @@ plot_lod <- function(matches) {
          subtitle = "Logistic fit per caller; VAF at 50% detection = limit of detection (LOD50)",
          x = "Expected VAF (log scale)", y = "Detection recall", colour = NULL)
 }
+
+# B2: precision-recall operating points, one point per caller x coverage x class.
+# Recall from correctness (per-class), precision from precision.tsv (per-sample,
+# GLOBAL all-calls denominator - a documented caveat surfaced in the subtitle).
+plot_pr <- function(corr, prec) {
+  corr$caller <- pretty_caller(corr$caller)
+  prec$caller <- pretty_caller(prec$caller)
+  corr <- corr %>% dplyr::mutate(
+    detected_events = as.numeric(detected_events),
+    truth_events = as.numeric(truth_events))
+  prec <- prec %>% dplyr::mutate(overall_precision = as.numeric(overall_precision))
+  rec <- corr %>%
+    dplyr::group_by(caller, coverage, replicate, biological_class) %>%
+    dplyr::summarise(recall = sum(detected_events) / sum(truth_events), .groups = "drop")
+  pr <- prec %>% dplyr::select(caller, coverage, replicate, precision = overall_precision)
+  df <- rec %>% dplyr::left_join(pr, by = c("caller", "coverage", "replicate")) %>%
+    dplyr::group_by(caller, coverage, biological_class) %>%
+    dplyr::summarise(recall = mean(recall), precision = mean(precision), .groups = "drop") %>%
+    dplyr::mutate(biological_class = factor(biological_class, levels = class_levels))
+  ggplot(df, aes(recall, precision, colour = caller, shape = biological_class)) +
+    geom_point(size = 3, alpha = 0.9) + facet_wrap(~ paste0(coverage, "x")) +
+    scale_color_lab() +
+    scale_shape_discrete(labels = class_labs, name = NULL) +
+    scale_x_continuous(limits = c(0, 1), labels = scales::percent) +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    labs(title = "Precision-recall operating points",
+         subtitle = "Precision = matched / all calls per sample (global denominator); one point per class",
+         colour = NULL)
+}
