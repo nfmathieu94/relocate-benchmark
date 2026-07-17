@@ -94,7 +94,9 @@ plot_confusion <- function(matches) {
     geom_text(aes(label = sprintf("%d\n%.0f%%", n, 100 * row_frac)), size = 3) +
     facet_wrap(~caller) +
     scale_fill_gradient(low = "#F7FBFF", high = "#08519C", labels = scales::percent,
-                        limits = c(0, 1), name = "Row %") +
+                        limits = c(0, 1), breaks = c(0, 0.5, 1), name = "Row %",
+                        guide = guide_colourbar(barwidth = grid::unit(3.5, "cm"),
+                                                barheight = grid::unit(0.4, "cm"))) +
     scale_x_discrete(labels = labs_vec) +
     scale_y_discrete(labels = class_labs) +
     labs(title = "Genotype / detection confusion",
@@ -162,16 +164,24 @@ plot_missed_profile <- function(matches) {
     tidyr::pivot_longer(c(strand, ambiguous_tsd),
                         names_to = "facet", values_to = "level") %>%
     dplyr::group_by(caller, facet, level) %>%
-    dplyr::summarise(recall = mean(matched == 1), n = dplyr::n(), .groups = "drop") %>%
+    dplyr::summarise(recall = mean(matched == 1),
+                     n_events = dplyr::n_distinct(event_id), .groups = "drop") %>%
     dplyr::mutate(facet = dplyr::recode(facet, strand = "Strand",
                                         ambiguous_tsd = "TSD definition"))
+  # One event-count label per stratum (both callers share the same event set),
+  # placed above the taller bar so thin strata like a lone ambiguous-TSD event
+  # read as "n=1", not as a missing/blank bar.
+  lab <- df %>% dplyr::group_by(facet, level) %>%
+    dplyr::summarise(y = max(recall), n_events = max(n_events), .groups = "drop")
   ggplot(df, aes(level, recall, fill = caller)) +
     geom_col(position = position_dodge(0.8), width = 0.7) +
+    geom_text(data = lab, aes(level, y, label = paste0("n=", n_events)),
+              inherit.aes = FALSE, vjust = -0.6, size = 2.7, colour = "grey30") +
     facet_wrap(~facet, scales = "free_x") +
     scale_fill_lab() +
-    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    scale_y_continuous(limits = c(0, 1.05), labels = scales::percent) +
     labs(title = "What do missed events have in common?",
-         subtitle = "Detection recall stratified by strand and TSD ambiguity (pooled)",
+         subtitle = "Detection recall stratified by strand and TSD ambiguity (pooled); n = distinct truth events",
          x = NULL, y = "Detection recall", fill = NULL)
 }
 
@@ -295,7 +305,10 @@ plot_f1 <- function(corr, prec) {
   ggplot(df, aes(col, caller, fill = f1)) +
     geom_tile(colour = "white", linewidth = 0.5) +
     geom_text(aes(label = sprintf("%.2f", f1)), size = 3) +
-    scale_fill_gradient(low = "#FFF5EB", high = "#7F2704", limits = c(0, 1), name = "F1") +
+    scale_fill_gradient(low = "#FFF5EB", high = "#7F2704", limits = c(0, 1),
+                        breaks = c(0, 0.5, 1), name = "F1",
+                        guide = guide_colourbar(barwidth = grid::unit(3.5, "cm"),
+                                                barheight = grid::unit(0.4, "cm"))) +
     labs(title = "F1 (detection x precision) by condition",
          subtitle = "Harmonic mean of recall and precision (precision = global-denominator, per sample)",
          x = NULL, y = NULL)
