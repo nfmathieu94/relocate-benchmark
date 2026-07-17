@@ -6,43 +6,18 @@
 #   Rscript scoring/make_report.R [reports_dir] [output_pdf]
 # Defaults: reports_dir = "reports", output_pdf = "reports/benchmark_report.pdf".
 
-suppressPackageStartupMessages({
-  library(ggplot2)
-  library(dplyr)
-  library(tidyr)
-  library(scales)
-  library(patchwork)
-})
-
-# ---- lab styling helpers -------------------------------------------------
-skill_dir <- "~/.claude/skills/ggplot-figures"
-for (f in c("theme_lab.R", "palettes.R", "figure_sizes.R", "save_figure.R")) {
-  src <- file.path(skill_dir, "R", f)
-  if (file.exists(src)) source(src)
-}
-if (!exists("theme_lab")) theme_lab <- function(...) theme_gray()
-if (!exists("scale_color_lab")) scale_color_lab <- function(...) scale_colour_hue()
+# Shared styling header, TSV reader, and stats/plot helpers live in report_lib.R.
+source("scoring/report_lib.R")
 
 # ---- args ----------------------------------------------------------------
 args <- commandArgs(trailingOnly = TRUE)
 reports_dir <- ifelse(length(args) >= 1, args[1], "reports")
 out_pdf     <- ifelse(length(args) >= 2, args[2], file.path(reports_dir, "benchmark_report.pdf"))
 
-read_tsv <- function(p) read.delim(p, sep = "\t", stringsAsFactors = FALSE, check.names = FALSE)
-
 corr <- read_tsv(file.path(reports_dir, "correctness.tsv"))
 prec <- read_tsv(file.path(reports_dir, "precision.tsv"))
 res_path <- file.path(reports_dir, "resources.tsv")
 res <- if (file.exists(res_path) && file.info(res_path)$size > 0) read_tsv(res_path) else NULL
-
-# Pretty caller labels (relocate2 -> RelocaTE2) without hardcoding the set.
-pretty_caller <- function(x) {
-  ifelse(grepl("^relocate", x, ignore.case = TRUE),
-         sub("relocate", "RelocaTE", x, ignore.case = TRUE), x)
-}
-class_levels <- c("homozygous", "heterozygous", "somatic_insertion")
-class_labs <- c(homozygous = "Homozygous", heterozygous = "Heterozygous",
-                somatic_insertion = "Somatic")
 
 corr <- corr %>%
   mutate(caller = pretty_caller(caller),
@@ -58,20 +33,6 @@ prec <- prec %>%
          overall_precision = as.numeric(overall_precision),
          false_discovery_rate = as.numeric(false_discovery_rate),
          false_positive_calls = as.numeric(false_positive_calls))
-
-sem <- function(x) if (length(x) > 1) sd(x) / sqrt(length(x)) else 0
-
-# Common line-with-SEM geom builder.
-line_sem <- function(df, y) {
-  ggplot(df, aes(coverage, mean, colour = caller, group = caller)) +
-    geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 1.2,
-                  linewidth = 0.4, alpha = 0.8) +
-    geom_line(linewidth = 0.9) +
-    geom_point(size = 2.1) +
-    scale_color_lab() +
-    scale_x_continuous(breaks = sort(unique(df$coverage))) +
-    labs(colour = NULL)
-}
 
 # ---- Page 1: detection recall by class x coverage ------------------------
 recall_by_class <- corr %>%
