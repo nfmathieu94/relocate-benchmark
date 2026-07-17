@@ -1,0 +1,15 @@
+[workspace]
+name = "relocate-benchmark-env"
+description = "Frozen python + R stack for benchmark scoring and reporting"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.12.*"
+r-base = ">=4.3"
+r-ggplot2 = "*"
+r-dplyr = "*"
+r-tidyr = "*"
+r-patchwork = "*"
+r-scales = "*"
+r-forcats = "*"
