@@ -174,3 +174,38 @@ plot_missed_profile <- function(matches) {
          subtitle = "Detection recall stratified by strand and TSD ambiguity (pooled)",
          x = NULL, y = "Detection recall", fill = NULL)
 }
+
+# B1: detection recall vs expected VAF with per-group logistic fit (LOD50).
+# Pools hom/het/somatic onto a single expected-VAF axis; fits recall ~ log10(vaf)
+# per caller x coverage; the VAF at 50% recall is the limit of detection.
+plot_lod <- function(matches) {
+  pts <- matches %>%
+    dplyr::mutate(vaf = as.numeric(expected_vaf)) %>%
+    dplyr::group_by(caller, coverage, vaf) %>%
+    dplyr::summarise(recall = mean(matched == 1), n = dplyr::n(), .groups = "drop")
+  fit_one <- function(d) {
+    d <- d[d$n > 0, ]
+    if (dplyr::n_distinct(d$vaf) < 3 || all(d$recall %in% c(0, 1))) return(NULL)
+    m <- tryCatch(glm(recall ~ log10(vaf), weights = n, family = binomial, data = d),
+                  error = function(e) NULL)
+    if (is.null(m)) return(NULL)
+    grid <- data.frame(vaf = 10^seq(log10(min(d$vaf)), log10(max(d$vaf)), length.out = 60))
+    grid$recall <- predict(m, grid, type = "response")
+    grid
+  }
+  curves <- pts %>% dplyr::group_by(caller, coverage) %>%
+    dplyr::group_modify(~ {
+      g <- fit_one(.x)
+      if (is.null(g)) g <- .x[0, c("vaf", "recall")]
+      g
+    }) %>% dplyr::ungroup()
+  ggplot(pts, aes(vaf, recall, colour = caller)) +
+    geom_line(data = curves, aes(vaf, recall), linewidth = 0.9) +
+    geom_point(aes(size = n), alpha = 0.8) +
+    facet_wrap(~ paste0(coverage, "x")) +
+    scale_color_lab() + scale_size_continuous(guide = "none") +
+    scale_x_log10() + scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    labs(title = "Detection sensitivity vs variant allele frequency",
+         subtitle = "Logistic fit per caller; VAF at 50% detection = limit of detection (LOD50)",
+         x = "Expected VAF (log scale)", y = "Detection recall", colour = NULL)
+}
