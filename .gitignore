@@ -14,6 +14,9 @@ reports/per_sample/*
 # Per-sample resource outputs (regenerable per-run); combined reports/*.tsv stay tracked
 reports/resources/
 
+# Standalone publication figures (large, regenerable by make_report.R)
+reports/figures/
+
 # Truth completion sentinel (data itself is small + tracked)
 truth/.complete
 
