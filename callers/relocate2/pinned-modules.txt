@@ -1,0 +1,17 @@
+# Exact cluster modules that provide a working RelocaTE2 stack (Phase 1 freeze).
+#
+# RelocaTE2 cannot be frozen as a pixi env: its bioconda package (relocate2
+# 2.0.1) is a Python-2.7-era build whose dependency closure (python 2.7,
+# samtools 1.3, ncurses 5.9, bedtools 2.26, pysam 0.9, blat 35, ...) no longer
+# resolves on current conda-forge/bioconda. The cluster relocate2/2.0.1 module
+# is a conda env built when those deps were still installable, so it is the one
+# working, immutable RT2 install available here.
+#
+# env.sh loads these in order: relocate2 first (puts relocaTE2.py + bundled
+# blat/samtools on PATH), then a modern bwa so `bwa mem` (used to build the
+# reads-to-genome BAM) wins over the old bundled bwa 0.6.2 on PATH.
+#
+# A portable, fully-frozen RelocaTE2 is deferred to the Phase 2 Apptainer image
+# (which can snapshot this module's conda env / the old package closure).
+relocate2/2.0.1
+bwa/0.7.19
