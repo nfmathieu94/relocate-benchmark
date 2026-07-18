@@ -52,11 +52,16 @@ The benchmark uses three frozen stacks:
   `callers/relocate3/env.sh` via `pixi shell-hook`.
 - **benchmark** — a pixi env (`env/benchmark/pixi.toml` + lock) with python 3.12
   and the R report stack. Runs scoring/reporting.
-- **RelocaTE2** — frozen via **pinned cluster modules**
-  (`callers/relocate2/pinned-modules.txt`: `relocate2/2.0.1` + `bwa/0.7.19`), NOT
-  pixi: its bioconda package is a dead python-2.7 build that no longer resolves.
-  It is cluster-only until a Phase 2 Apptainer image; `setup_envs.sh` does not
-  touch it.
+- **RelocaTE2** — a **digest-pinned BioContainer** (portable), NOT pixi: its
+  bioconda package is a dead python-2.7 build that no longer resolves.
+  `relocaTE2.py`/`blat`/`samtools` come from a `relocate2` image and `bwa 0.7.19`
+  from a separate `bwa` image, run via apptainer-exec shims that
+  `callers/relocate2/env.sh` puts on PATH (run.sh unchanged). `setup_envs.sh`
+  pulls both images (digest-pinned in `callers/relocate2/images.txt`; requires
+  apptainer). The **pinned cluster modules**
+  (`callers/relocate2/pinned-modules.txt`: `relocate2/2.0.1` + `bwa/0.7.19`) are
+  an automatic fallback when the container path is unavailable. See
+  [`docs/2026-07-17-rt2-container.md`](docs/2026-07-17-rt2-container.md).
 
 Each `env.sh` also has an **UNPINNED fallback** (module/system tools) that warns
 when the frozen env is unavailable — an escape hatch, not the intended path.
