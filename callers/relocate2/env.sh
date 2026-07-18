@@ -20,12 +20,25 @@ _setup_container_env() {
   command -v apptainer >/dev/null 2>&1 || return 1
   [[ -f "$_relocate2_sif" && -f "$_bwa_sif" ]] || return 1
 
-  # Bind data + repo + scratch roots so containers see reference/reads/OUTDIR.
-  export APPTAINER_BIND="/bigdata,/rhome,/scratch${APPTAINER_BIND:+,$APPTAINER_BIND}"
   export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-/scratch/$USER/apptainer-cache}"
 
   # Task-scoped shim bin dir: each tool execs its image.
   _shim_bin="$(mktemp -d "${TMPDIR:-/scratch/$USER}/rt2-shims.XXXXXX")"
+
+  # RelocaTE2's bundled Perl scripts (fastq_split.pl, ...) hardcode
+  # `#!/usr/bin/perl`, which the BioContainer lacks (its perl is
+  # /usr/local/bin/perl). Bind a wrapper so /usr/bin/perl inside the container
+  # runs the container's own perl; without this the fastq split silently
+  # produces nothing and relocaTE2.py dies with an IndexError.
+  local _perl_wrapper="$_shim_bin/.perl-in-container"
+  printf '#!/bin/bash\nexec /usr/local/bin/perl "$@"\n' > "$_perl_wrapper"
+  chmod +x "$_perl_wrapper"
+
+  # Bind data + repo + scratch roots (so containers see reference/reads/OUTDIR)
+  # plus the perl wrapper; silence the container's locale warnings.
+  export APPTAINER_BIND="/bigdata,/rhome,/scratch,$_perl_wrapper:/usr/bin/perl${APPTAINER_BIND:+,$APPTAINER_BIND}"
+  export APPTAINERENV_LC_ALL=C
+
   local t
   for t in relocaTE2.py blat samtools; do
     printf '#!/usr/bin/bash\nexec apptainer exec %q %s "$@"\n' "$_relocate2_sif" "$t" > "$_shim_bin/$t"
