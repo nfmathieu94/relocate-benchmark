@@ -1,0 +1,5 @@
+caller	sample	coverage	replicate	wall_seconds	max_rss_kb	user_seconds	system_seconds	percent_cpu
+caller_a	cov5x_rep1	5	1	120	1048576	700	20	600%
+caller_a	cov15x_rep1	15	1	300	2097152	1800	40	610%
+caller_b	cov5x_rep1	5	1	90	786432	500	15	570%
+caller_b	cov15x_rep1	15	1	240	1572864	1400	30	595%

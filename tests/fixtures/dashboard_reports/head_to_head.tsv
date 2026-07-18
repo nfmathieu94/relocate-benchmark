@@ -1,0 +1,7 @@
+coverage	replicate	biological_class	cellular_fraction	caller_a_detection_recall	caller_a_status_accuracy_given_detected	caller_b_detection_recall	caller_b_status_accuracy_given_detected	caller_a_minus_caller_b_recall
+5	1	homozygous	1.0	0.9	1.0	0.8	1.0	0.1
+5	1	somatic_insertion	0.2	0.2	0.5	0.1	0.0	0.1
+5	1	somatic_insertion	0.4	0.4	0.5	0.3	0.3333333333	0.1
+15	1	homozygous	1.0	1.0	1.0	0.9	1.0	0.1
+15	1	somatic_insertion	0.2	0.5	0.6	0.4	0.5	0.1
+15	1	somatic_insertion	0.4	0.7	0.7142857143	0.6	0.5	0.1

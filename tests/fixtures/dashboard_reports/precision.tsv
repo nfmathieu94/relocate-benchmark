@@ -1,0 +1,5 @@
+caller	sample	coverage	replicate	total_calls	matched_calls	false_positive_calls	overall_precision	false_discovery_rate
+caller_a	cov5x_rep1	5	1	16	15	1	0.9375	0.0625
+caller_a	cov15x_rep1	15	1	24	22	2	0.9166666667	0.0833333333
+caller_b	cov5x_rep1	5	1	14	12	2	0.8571428571	0.1428571429
+caller_b	cov15x_rep1	15	1	22	19	3	0.8636363636	0.1363636364

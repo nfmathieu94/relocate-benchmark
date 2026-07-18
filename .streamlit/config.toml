@@ -1,0 +1,8 @@
+[server]
+# HPCC-safe default: expose the dashboard only through an SSH-forwarded local
+# socket, not on every network interface of the login host.
+address = "127.0.0.1"
+headless = true
+
+[browser]
+gatherUsageStats = false
