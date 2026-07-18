@@ -1,0 +1,7 @@
+# BioContainer images for the RelocaTE2 adapter, pinned by digest (immutable).
+# Format per line: <sifname> <apptainer-pull-ref>
+# Pulled by pipeline/setup_envs.sh into callers/relocate2/images/<sifname>.sif
+# relocate2 tag 2.0.1--hdfd78af_6 (same build as cluster module relocate2/2.0.1)
+relocate2 docker://quay.io/biocontainers/relocate2@sha256:900d3dd35c324f03f328839ce134df937a9f5b0b4b122cbc4cd431eb66c7e109
+# bwa tag 0.7.19--h577a1d6_1 (modern bwa for the adapter's `bwa mem` step)
+bwa docker://quay.io/biocontainers/bwa@sha256:99a35e5ee4e9c329e8746c4689890b97a3ac5620cb36d374cba69ba52016e72a
