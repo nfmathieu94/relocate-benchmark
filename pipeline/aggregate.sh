@@ -13,7 +13,15 @@
 set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
-PY=python3.12
+
+# Prefer the frozen benchmark env's python (pinned >=3.11); fall back to a system
+# python3.12. Array form so call sites expand as "${PY[@]}".
+if command -v pixi >/dev/null 2>&1 && [[ -f env/benchmark/pixi.toml ]]; then
+  PY=(pixi run --manifest-path env/benchmark/pixi.toml python3)
+else
+  echo "WARN: benchmark pixi env unavailable; using unpinned python3.12" >&2
+  PY=(python3.12)
+fi
 
 echo "[$(date)] aggregate: starting in $(pwd)"
 
@@ -23,7 +31,7 @@ mkdir -p logs reports
 # 1. Combine per-sample correctness/precision/resources into reports/*.tsv.
 # ---------------------------------------------------------------------------
 echo "[$(date)] combining per-sample reports"
-"$PY" scoring/combine_reports.py \
+"${PY[@]}" scoring/combine_reports.py \
   --report-root reports \
   --samples truth/samples.tsv
 
@@ -31,7 +39,7 @@ echo "[$(date)] combining per-sample reports"
 # 2. Head-to-head caller comparison.
 # ---------------------------------------------------------------------------
 echo "[$(date)] comparing callers"
-"$PY" scoring/compare_callers.py \
+"${PY[@]}" scoring/compare_callers.py \
   --correctness reports/correctness.tsv \
   --outdir reports
 
@@ -41,8 +49,15 @@ echo "[$(date)] comparing callers"
 PDF="reports/benchmark_report.pdf"
 if [[ -f scoring/make_report.R ]]; then
   echo "[$(date)] rendering PDF report (best-effort)"
-  module load R || true
-  if ! Rscript scoring/make_report.R reports "$PDF"; then
+  BENCH_ENV="env/benchmark/pixi.toml"
+  if command -v pixi >/dev/null 2>&1 && [[ -f "$BENCH_ENV" ]]; then
+    RUN_R=(pixi run --manifest-path "$BENCH_ENV" Rscript)
+  else
+    echo "WARN: benchmark pixi env unavailable; using unpinned module R" >&2
+    command -v module >/dev/null 2>&1 && { module load R || true; }
+    RUN_R=(Rscript)
+  fi
+  if ! "${RUN_R[@]}" scoring/make_report.R reports "$PDF"; then
     echo "WARN: PDF report step failed" >&2
   fi
 else

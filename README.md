@@ -35,6 +35,35 @@ data.
 - **R** (`module load R`) with `ggplot2` for the multipage PDF report
   (`scoring/make_report.R`). Optional — the numeric TSV reports do not need R.
 
+## Setup / environments
+
+Provision the frozen pixi environments once before first use (requires `pixi`
+on PATH):
+
+```bash
+bash pipeline/setup_envs.sh
+```
+
+This installs the two committed pixi manifests into gitignored `.pixi/` dirs.
+The benchmark uses three frozen stacks:
+
+- **RelocaTE3** — a pixi env (`callers/relocate3/pixi.toml` + lock) pinned to a
+  RelocaTE3 git rev, plus bcftools/minimap2/samtools. Activated by
+  `callers/relocate3/env.sh` via `pixi shell-hook`.
+- **benchmark** — a pixi env (`env/benchmark/pixi.toml` + lock) with python 3.12
+  and the R report stack. Runs scoring/reporting.
+- **RelocaTE2** — frozen via **pinned cluster modules**
+  (`callers/relocate2/pinned-modules.txt`: `relocate2/2.0.1` + `bwa/0.7.19`), NOT
+  pixi: its bioconda package is a dead python-2.7 build that no longer resolves.
+  It is cluster-only until a Phase 2 Apptainer image; `setup_envs.sh` does not
+  touch it.
+
+Each `env.sh` also has an **UNPINNED fallback** (module/system tools) that warns
+when the frozen env is unavailable — an escape hatch, not the intended path.
+
+See [`docs/2026-07-17-env-pinning.md`](docs/2026-07-17-env-pinning.md) for the
+add-a-caller recipe and how to bump the RelocaTE3 pin.
+
 ## Layout
 
 ```
