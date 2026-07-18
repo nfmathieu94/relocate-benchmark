@@ -166,6 +166,27 @@ benchmark will use.
   status accuracy, precision + false-positive counts, somatic recall by cellular
   fraction, and compute resources.
 
+## Interactive dashboard
+
+After aggregation, launch the read-only Streamlit dashboard from the repository
+root:
+
+```bash
+bash pipeline/run_dashboard.sh
+```
+
+It reads the existing combined TSV reports and provides Overview, Accuracy,
+Somatic, Resources, and Provenance pages with data-driven filters. It never runs
+callers or recalculates authoritative benchmark metrics. To open a copied or
+historical result set:
+
+```bash
+bash pipeline/run_dashboard.sh --report-dir results/history/run_2026_07_17
+```
+
+See [`docs/dashboard.md`](docs/dashboard.md) for metric interpretation, HPCC
+port forwarding, and troubleshooting.
+
 ## Adding a new caller
 
 No scoring changes are required. To add caller `<name>`:
@@ -184,7 +205,8 @@ No scoring changes are required. To add caller `<name>`:
 ## Testing
 
 ```bash
-python3.12 -m unittest discover -s tests -v
+pixi run --manifest-path env/benchmark/pixi.toml \
+  python -m unittest discover -s tests -v
 ```
 
 ## Known limitation

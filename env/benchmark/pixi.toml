@@ -13,3 +13,11 @@ r-tidyr = "*"
 r-patchwork = "*"
 r-scales = "*"
 r-forcats = "*"
+pandas = ">=2.2,<4"
+plotly = ">=6,<7"
+streamlit = ">=1.45,<2"
+
+[tasks]
+# Run from the repository root so dashboard defaults and relative report paths
+# behave the same whether this task is launched directly or through the wrapper.
+dashboard = "cd ../.. && streamlit run dashboard/app.py --"
