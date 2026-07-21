@@ -33,7 +33,9 @@ set -euo pipefail
 TE_NAME="${TE_NAME:-mPing}"
 TSD_PATTERN="${TSD_PATTERN:-...}"
 TARGET="${TARGET:-ALL}"
-RT3_ALIGNER="${RT3_ALIGNER:-minimap2}"
+# Per-stage aligners (RT3_ALIGNER kept as a back-compat default for both).
+RT3_TE_ALIGNER="${RT3_TE_ALIGNER:-${RT3_ALIGNER:-minimap2}}"
+RT3_GENOME_ALIGNER="${RT3_GENOME_ALIGNER:-${RT3_ALIGNER:-minimap2}}"
 RT3_MISMATCH="${RT3_MISMATCH:-2}"
 RT3_MIN_MATCH="${RT3_MIN_MATCH:-10}"
 RT3_MIN_TRIMMED="${RT3_MIN_TRIMMED:-10}"
@@ -80,7 +82,13 @@ source "$ADAPTER_DIR/env.sh"
 READ_REPEAT="$RAW/te_containing/${SAMPLE}.read_repeat_name.txt"
 FLANK5="$RAW/flanking/${SAMPLE}.left.flankingReads.fq"
 FLANK3="$RAW/flanking/${SAMPLE}.right.flankingReads.fq"
-GENOME_BAM="$RAW/${SAMPLE}.repeat.minimap.sorted.bam"
+# align-genome names the BAM by the genome aligner: minimap2 keeps the historical
+# ".repeat.minimap.sorted.bam"; others use ".repeat.<aligner>.sorted.bam".
+if [[ "$RT3_GENOME_ALIGNER" == "minimap2" ]]; then
+  GENOME_BAM="$RAW/${SAMPLE}.repeat.minimap.sorted.bam"
+else
+  GENOME_BAM="$RAW/${SAMPLE}.repeat.${RT3_GENOME_ALIGNER}.sorted.bam"
+fi
 NONREF_TXT="$RAW/results/${TARGET}.${TE_NAME}.all_nonref_insert.txt"
 CHAR_TXT="$RAW/results/${TARGET}.${TE_NAME}.all_nonref_insert.characTErized.txt"
 FULLREADS_BAM="$RAW/${SAMPLE}.original_reads.sorted.bam"
@@ -93,7 +101,8 @@ echo "  R1          : $R1"
 echo "  R2          : $R2"
 echo "  outdir      : $OUTDIR (raw -> $RAW)"
 echo "  threads     : $THREADS"
-echo "  aligner     : $RT3_ALIGNER"
+echo "  te-aligner  : $RT3_TE_ALIGNER"
+echo "  gen-aligner : $RT3_GENOME_ALIGNER"
 echo "  mismatch    : $RT3_MISMATCH"
 echo "  match/trim  : ${RT3_MIN_MATCH}/${RT3_MIN_TRIMMED}"
 echo "  te_name/TSD : ${TE_NAME}/${TSD_PATTERN}"
@@ -117,7 +126,7 @@ relocaTE3 run \
   --name "$SAMPLE" \
   --outdir "$RAW" \
   --threads "$THREADS" \
-  --aligner "$RT3_ALIGNER" \
+  --te-aligner "$RT3_TE_ALIGNER" \
   --min-match "$RT3_MIN_MATCH" \
   --min-trimmed "$RT3_MIN_TRIMMED" \
   --mismatch "$RT3_MISMATCH"
@@ -142,7 +151,8 @@ relocaTE3 align-genome \
   -f "${FLANK_INPUTS[@]}" \
   -n "$SAMPLE" \
   -o "$RAW" \
-  --threads "$THREADS"
+  --threads "$THREADS" \
+  --genome-aligner "$RT3_GENOME_ALIGNER"
 
 if [[ ! -s "$GENOME_BAM" ]]; then
   echo "ERROR: expected genome-aligned BAM not produced: $GENOME_BAM" >&2

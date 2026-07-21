@@ -205,5 +205,78 @@ class TestConfigEnv(unittest.TestCase):
             self.assertEqual(out.strip(), "")
 
 
+def _make_variant_config(tmp: Path):
+    panel_root = tmp / "panel"
+    panel_root.mkdir()
+    (panel_root / "panel_manifest.tsv").write_text(MANIFEST)
+    cfg = tmp / "benchmark.toml"
+    cfg.write_text(
+        f"""
+[dataset]
+panel_root   = "{panel_root}"
+reference    = "/ref/genome.fa"
+te_library   = "/te/lib.fa"
+repeatmasker = "/rm/out.out"
+te_name      = "mPing"
+
+[run]
+work_root = "runs"
+threads   = 8
+
+[scoring]
+match_window = 10
+
+[callers.relocate3-bwa-bwa]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/some/rt3/repo"
+tsd            = "..."
+te_aligner     = "bwa"
+genome_aligner = "bwa"
+label          = "RelocaTE3-bwa/bwa"
+"""
+    )
+    return cfg
+
+
+class TestAlignerVariants(unittest.TestCase):
+    def test_caller_env_variant_has_aligners(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = _make_variant_config(Path(td))
+            out = config_env.run(["--config", str(cfg), "caller-env", "relocate3-bwa-bwa"])
+            self.assertIn("RT3_REPO='/some/rt3/repo'", out)
+            self.assertIn("RT3_TE_ALIGNER='bwa'", out)
+            self.assertIn("RT3_GENOME_ALIGNER='bwa'", out)
+
+    def test_adapter_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = _make_variant_config(Path(td))
+            out = config_env.run(["--config", str(cfg), "adapter", "relocate3-bwa-bwa"])
+            self.assertEqual(out.strip(), "callers/relocate3")
+
+    def test_adapter_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = _make_variant_config(Path(td))
+            # a caller with no explicit adapter defaults to callers/<name>
+            out = config_env.run(["--config", str(cfg), "adapter", "somecaller"])
+            self.assertEqual(out.strip(), "callers/somecaller")
+
+    def test_labels_command(self):
+        with tempfile.TemporaryDirectory() as td:
+            cfg = _make_variant_config(Path(td))
+            out = config_env.run(["--config", str(cfg), "labels"])
+            self.assertIn("relocate3-bwa-bwa\tRelocaTE3-bwa/bwa", out)
+
+    def test_pretty_caller(self):
+        self.assertEqual(config_env.pretty_caller("relocate2"), "RelocaTE2")
+        self.assertEqual(
+            config_env.pretty_caller("relocate3-bwa-bwa"), "RelocaTE3-bwa/bwa"
+        )
+        self.assertEqual(
+            config_env.pretty_caller("relocate3-minimap2-minimap2"),
+            "RelocaTE3-minimap2/minimap2",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -22,10 +22,14 @@ if (!exists("scale_fill_lab")) scale_fill_lab <- function(...) scale_fill_hue()
 
 read_tsv <- function(p) read.delim(p, sep = "\t", stringsAsFactors = FALSE, check.names = FALSE)
 
-# Pretty caller labels (relocate2 -> RelocaTE2) without hardcoding the set.
+# Pretty caller labels without hardcoding the set:
+#   relocate3-<te>-<genome> -> RelocaTE3-<te>/<genome>
+#   relocate2               -> RelocaTE2
 pretty_caller <- function(x) {
-  ifelse(grepl("^relocate", x, ignore.case = TRUE),
-         sub("relocate", "RelocaTE", x, ignore.case = TRUE), x)
+  ifelse(grepl("^relocate3-", x),
+         sub("^relocate3-([^-]+)-(.+)$", "RelocaTE3-\\1/\\2", x),
+         ifelse(grepl("^relocate", x, ignore.case = TRUE),
+                sub("relocate", "RelocaTE", x, ignore.case = TRUE), x))
 }
 class_levels <- c("homozygous", "heterozygous", "somatic_insertion")
 class_labs <- c(homozygous = "Homozygous", heterozygous = "Heterozygous",

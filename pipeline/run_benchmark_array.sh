@@ -66,26 +66,32 @@ mkdir -p "$RES_DIR" logs
 export SAMPLE R1 R2 OUTDIR THREADS
 export REFERENCE TE_LIBRARY REPEATMASKER TE_NAME
 
-# Caller-specific extras (RT3_REPO/TSD_PATTERN or RT2_ALIGNER/RT2_SIZE/RT2_MISMATCH).
+# Caller-specific extras (RT3_REPO/TSD_PATTERN/RT3_TE_ALIGNER/RT3_GENOME_ALIGNER
+# or RT2_ALIGNER/RT2_SIZE/RT2_MISMATCH).
 eval "$("$PY" pipeline/config_env.py --config "$CONFIG" caller-env "$CALLER")"
-for v in RT3_REPO TSD_PATTERN RT2_ALIGNER RT2_SIZE RT2_MISMATCH; do
+for v in RT3_REPO TSD_PATTERN RT3_TE_ALIGNER RT3_GENOME_ALIGNER \
+         RT2_ALIGNER RT2_SIZE RT2_MISMATCH; do
   if [[ -n "${!v+x}" ]]; then
     export "${v?}"
   fi
 done
 
+# Resolve the adapter dir from config so several callers (e.g. the RelocaTE3
+# aligner variants) can share one adapter. Defaults to callers/<caller>.
+ADAPTER="$("$PY" pipeline/config_env.py --config "$CONFIG" adapter "$CALLER")"
+
 # ---------------------------------------------------------------------------
 # 5. Run the caller adapter under /usr/bin/time -v.
 # ---------------------------------------------------------------------------
 TIME_FILE="$RES_DIR/${SAMPLE}.time-v.txt"
-echo "[$(date)] running caller adapter: callers/$CALLER/run.sh"
-/usr/bin/time -v -o "$TIME_FILE" bash "callers/$CALLER/run.sh"
+echo "[$(date)] running caller adapter: $ADAPTER/run.sh"
+/usr/bin/time -v -o "$TIME_FILE" bash "$ADAPTER/run.sh"
 
 # ---------------------------------------------------------------------------
 # 6. Normalize (uniform call for every caller).
 # ---------------------------------------------------------------------------
 echo "[$(date)] normalizing calls"
-"$PY" "callers/$CALLER/normalize.py" \
+"$PY" "$ADAPTER/normalize.py" \
   --outdir "$OUTDIR" \
   --sample "$SAMPLE" \
   --te-name "$TE_NAME" \

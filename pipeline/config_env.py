@@ -27,16 +27,50 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.config import load_config
 
-# Map each caller's known config keys to their contract env-var names. Unknown
-# callers (not present here) yield no caller-specific env.
-CALLER_ENV_MAP: dict[str, dict[str, str]] = {
-    "relocate3": {"repo": "RT3_REPO", "tsd": "TSD_PATTERN"},
+# Map each ADAPTER (basename of the caller's `adapter` path) to the config keys
+# it consumes and their contract env-var names. Keying by adapter (not caller
+# name) lets many callers -- e.g. the RelocaTE3 aligner variants -- share one
+# adapter and env mapping. Unknown adapters yield no caller-specific env.
+ADAPTER_ENV_MAP: dict[str, dict[str, str]] = {
+    "relocate3": {
+        "repo": "RT3_REPO",
+        "tsd": "TSD_PATTERN",
+        "te_aligner": "RT3_TE_ALIGNER",
+        "genome_aligner": "RT3_GENOME_ALIGNER",
+    },
     "relocate2": {
         "aligner": "RT2_ALIGNER",
         "size": "RT2_SIZE",
         "mismatch": "RT2_MISMATCH",
     },
 }
+
+
+def _adapter_dir(tbl: dict) -> str:
+    """The caller's adapter directory (config `adapter`, default callers/<name>)."""
+    return tbl.get("adapter", "")
+
+
+def _adapter_key(tbl: dict) -> str:
+    """Basename of the adapter path, used to look up ADAPTER_ENV_MAP."""
+    return Path(tbl.get("adapter", "")).name
+
+
+def pretty_caller(key: str) -> str:
+    """Render a caller key as its display label.
+
+    Uses the config `label` when set; otherwise derives it from the key:
+    ``relocate3-<te>-<genome>`` -> ``RelocaTE3-<te>/<genome>``; ``relocate2`` ->
+    ``RelocaTE2``.
+    """
+    import re
+
+    m = re.match(r"^relocate3-([^-]+)-(.+)$", key)
+    if m:
+        return f"RelocaTE3-{m.group(1)}/{m.group(2)}"
+    if key.lower().startswith("relocate"):
+        return "RelocaTE" + key[len("relocate") :]
+    return key
 
 
 def _sq(value) -> str:
@@ -80,16 +114,28 @@ def _callers(cfg: dict) -> str:
 
 
 def _caller_env(cfg: dict, name: str) -> str:
-    mapping = CALLER_ENV_MAP.get(name)
     tbl = cfg.get("callers", {}).get(name, {})
+    mapping = ADAPTER_ENV_MAP.get(_adapter_key(tbl))
     if not mapping or not tbl:
         return ""
-    lines = [
-        f"{env}={_sq(tbl[key])}"
-        for key, env in mapping.items()
-        if key in tbl
-    ]
+    lines = [f"{env}={_sq(tbl[key])}" for key, env in mapping.items() if key in tbl]
     return ("\n".join(lines) + "\n") if lines else ""
+
+
+def _adapter(cfg: dict, name: str) -> str:
+    """Print the adapter dir for a caller (default callers/<name>)."""
+    tbl = cfg.get("callers", {}).get(name, {})
+    return (_adapter_dir(tbl) or f"callers/{name}") + "\n"
+
+
+def _labels(cfg: dict) -> str:
+    """Print ``<key>\\t<label>`` for each enabled caller."""
+    callers = cfg.get("callers", {})
+    out = []
+    for name in _enabled_callers(cfg):
+        label = callers.get(name, {}).get("label") or pretty_caller(name)
+        out.append(f"{name}\t{label}")
+    return "\n".join(out) + "\n" if out else ""
 
 
 def _task_records(cfg: dict) -> list[dict]:
@@ -168,9 +214,18 @@ def run(argv=None) -> str:
     ap.add_argument("--config", default="config/benchmark.toml", type=Path)
     ap.add_argument(
         "mode",
-        choices=["globals", "callers", "caller-env", "tasks", "count", "indices"],
+        choices=[
+            "globals",
+            "callers",
+            "caller-env",
+            "adapter",
+            "labels",
+            "tasks",
+            "count",
+            "indices",
+        ],
     )
-    ap.add_argument("name", nargs="?", help="caller name (for caller-env)")
+    ap.add_argument("name", nargs="?", help="caller name (for caller-env/adapter)")
     # Filters for `indices` (each a comma-separated list; omitted = no constraint).
     ap.add_argument("--caller", help="filter indices by caller (indices mode)")
     ap.add_argument("--coverage", help="filter indices by coverage (indices mode)")
@@ -188,6 +243,12 @@ def run(argv=None) -> str:
         if not args.name:
             ap.error("caller-env requires a caller name")
         return _caller_env(cfg, args.name)
+    if args.mode == "adapter":
+        if not args.name:
+            ap.error("adapter requires a caller name")
+        return _adapter(cfg, args.name)
+    if args.mode == "labels":
+        return _labels(cfg)
     if args.mode == "tasks":
         return _tasks(cfg)
     if args.mode == "count":
