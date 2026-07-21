@@ -47,10 +47,13 @@ done
 # ---------------------------------------------------------------------------
 # 1. Resolve the RT3 repo path from config (sets RT3_REPO, TSD_PATTERN).
 # ---------------------------------------------------------------------------
-eval "$("$PY" pipeline/config_env.py --config "$CONFIG" caller-env relocate3)"
+# All relocate3-* aligner variants share one repo; resolve it from the first
+# enabled relocate3 caller (the callers list is sorted).
+RT3_CALLER="$("$PY" pipeline/config_env.py --config "$CONFIG" callers | grep -m1 '^relocate3')"
+eval "$("$PY" pipeline/config_env.py --config "$CONFIG" caller-env "$RT3_CALLER")"
 
 if [[ -z "${RT3_REPO:-}" ]]; then
-  echo "ERROR: RT3_REPO not found in config ($CONFIG, callers.relocate3.repo)" >&2
+  echo "ERROR: RT3_REPO not found in config ($CONFIG, a callers.relocate3*.repo)" >&2
   exit 1
 fi
 if [[ ! -d "$RT3_REPO" ]]; then

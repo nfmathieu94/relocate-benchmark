@@ -24,8 +24,42 @@ aligner  = "blat"
 size     = 250
 mismatch = 2
 
-[callers.relocate3]
-enabled = true
-adapter = "callers/relocate3"
-repo    = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
-tsd     = "..."   # 3-bp wildcard; known RT3 limitation vs 4-5 bp truth
+# RelocaTE3 aligner variants. Each is a caller keyed `relocate3-<te>-<genome>`
+# (filesystem-safe) with a display `label` "RelocaTE3-<te>/<genome>". All share
+# the callers/relocate3 adapter and differ only by te_aligner/genome_aligner.
+[callers.relocate3-minimap2-minimap2]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "..."   # 3-bp wildcard; known RT3 limitation vs 4-5 bp truth
+te_aligner     = "minimap2"
+genome_aligner = "minimap2"
+label          = "RelocaTE3-minimap2/minimap2"
+
+[callers.relocate3-bwa-bwa]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "..."
+te_aligner     = "bwa"
+genome_aligner = "bwa"
+label          = "RelocaTE3-bwa/bwa"
+
+[callers.relocate3-bowtie2-bwa]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "..."
+te_aligner     = "bowtie2"
+genome_aligner = "bwa"
+label          = "RelocaTE3-bowtie2/bwa"
+
+# Opt-in (needs `blat` on PATH; not pinned -- bioconda blat conflicts with matplotlib).
+[callers.relocate3-blat-bwa]
+enabled        = false
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "..."
+te_aligner     = "blat"
+genome_aligner = "bwa"
+label          = "RelocaTE3-blat/bwa"
