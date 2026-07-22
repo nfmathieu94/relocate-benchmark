@@ -20,7 +20,7 @@ pybedtools = "*"
 # on PATH to enable the relocate3-blat-* variants.
 
 [pypi-dependencies]
-# TEMPORARY: editable local install so the benchmark uses the multi-aligner
-# branch (feat-multi-aligner) before it is pushed/merged. Re-pin to a git rev
-# (RelocaTE3 = { git = "...", rev = "<sha>" }) once the branch lands on main.
-RelocaTE3 = { path = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3", editable = true }
+# Frozen RelocaTE3: pinned to the multi-aligner merge on stajichlab/main
+# (PR #27, commit 3bac13d, 2026-07-20 -- the --te-aligner/--genome-aligner
+# release). HTTPS URL so pixi can clone without an SSH key on the cluster.
+RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "3bac13d7835260127ddc153c81a8e8e0b4ae5852" }
