@@ -154,7 +154,13 @@ class TestScore(unittest.TestCase):
             self.assertTrue((outdir / name).exists(), f"missing {name}")
         # zero false positives -> empty file
         self.assertEqual((outdir / "false_positive_calls.tsv").read_text(), "")
-        # second run into the now non-empty dir must refuse
+        # A completed report dir (.complete present) is idempotently re-scorable:
+        # a second run overwrites cleanly and returns 0 instead of refusing.
+        self.assertEqual(main(argv), 0)
+        self.assertTrue((outdir / ".complete").exists())
+        # But a non-empty dir WITHOUT the .complete marker is foreign/partial and
+        # must still be refused, so we never clobber unrelated data.
+        (outdir / ".complete").unlink()
         with self.assertRaises(FileExistsError):
             main(argv)
 

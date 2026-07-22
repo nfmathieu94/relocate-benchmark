@@ -45,8 +45,13 @@ te_aligner     = "bwa"
 genome_aligner = "bwa"
 label          = "RelocaTE3-bwa/bwa"
 
+# DISABLED 2026-07-22: RelocaTE3's Bowtie2Backend maps the TE library in
+# end-to-end mode (no --local), producing 0 soft-clipped alignments, so no
+# TE-junction flanks are extracted and 0 non-reference insertions are called on
+# every sample (vs ~300-450 for bwa/minimap2). Re-enable once RelocaTE3's
+# bowtie2 TE mapping uses --local (see docs/2026-07-22-bowtie2-index-race.md).
 [callers.relocate3-bowtie2-bwa]
-enabled        = true
+enabled        = false
 adapter        = "callers/relocate3"
 repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd            = "..."

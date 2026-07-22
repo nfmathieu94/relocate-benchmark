@@ -17,6 +17,9 @@ reports/resources/
 # Standalone publication figures (large, regenerable by make_report.R)
 reports/figures/
 
+# Per-run caller ranking reports (regenerable by scoring/rank_callers.py)
+reports/caller_ranking_*.md
+
 # Truth completion sentinel (data itself is small + tracked)
 truth/.complete
 
