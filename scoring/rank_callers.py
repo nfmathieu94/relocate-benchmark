@@ -76,14 +76,14 @@ def breakdowns(rows):
 
 
 def precision_by_caller(prec_rows):
-    """dict caller -> {'precision': mean overall_precision (None if none), 'fp': sum FP}."""
-    acc = defaultdict(lambda: {"p": [], "fp": 0.0})
+    """dict caller -> {'precision': event-weighted (pooled) precision
+    = sum(matched_calls)/sum(total_calls) (None if total==0), 'fp': sum FP}."""
+    acc = defaultdict(lambda: {"matched": 0.0, "total": 0.0, "fp": 0.0})
     for r in prec_rows:
-        p = _f(r.get("overall_precision"))
-        if p is not None:
-            acc[r["caller"]]["p"].append(p)
+        acc[r["caller"]]["matched"] += _f(r.get("matched_calls")) or 0
+        acc[r["caller"]]["total"] += _f(r.get("total_calls")) or 0
         acc[r["caller"]]["fp"] += _f(r.get("false_positive_calls")) or 0
-    return {c: {"precision": (sum(v["p"]) / len(v["p"]) if v["p"] else None),
+    return {c: {"precision": (v["matched"] / v["total"] if v["total"] else None),
                 "fp": v["fp"]} for c, v in acc.items()}
 
 
@@ -158,7 +158,12 @@ def main(argv=None):
         print("WARNING: combined report tables look STALE (per-sample data is newer "
               "than correctness.tsv). Run `bash pipeline/aggregate.sh` first.\n")
 
-    corr = read_tsv(args.reports_dir / "correctness.tsv")
+    corr_path = args.reports_dir / "correctness.tsv"
+    if not corr_path.exists():
+        print(f"ERROR: {corr_path} not found — run `bash pipeline/aggregate.sh` first.")
+        return 1
+
+    corr = read_tsv(corr_path)
     prec = read_tsv(args.reports_dir / "precision.tsv")
     md = render_markdown(corr, prec, args.date, args.tie_eps)
     out_path = args.reports_dir / f"caller_ranking_{args.date}.md"

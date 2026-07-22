@@ -44,10 +44,10 @@ def _corr(caller, cov, cls, frac, truth, detected, status_correct):
     }
 
 
-def _prec(caller, precision, fp):
+def _prec(caller, precision, fp, matched="90", total="90"):
     return {
         "caller": caller, "sample": "s", "coverage": "5", "replicate": "1",
-        "total_calls": "90", "matched_calls": "90",
+        "total_calls": total, "matched_calls": matched,
         "overall_precision": precision, "false_discovery_rate": "0.0",
         "false_positive_calls": str(fp),
     }
@@ -107,16 +107,23 @@ class TestBreakdowns(unittest.TestCase):
 
 
 class TestPrecisionByCaller(unittest.TestCase):
-    def test_mean_and_fp_with_na(self):
+    def test_pooled_event_weighted_and_fp(self):
+        # a: (matched=90,total=90) + (matched=30,total=60) -> 120/150 = 0.80
+        # (event-weighted pooled, NOT the mean-of-ratios 0.75)
         rows = [
-            _prec("a", "1.0", 2),
-            _prec("a", "0.5", 3),
-            _prec("b", "NA", 1),
-            _prec("b", "", 4),
+            _prec("a", "1.0", 2, matched="90", total="90"),
+            _prec("a", "0.5", 3, matched="30", total="60"),
         ]
         pc = rc.precision_by_caller(rows)
-        self.assertAlmostEqual(pc["a"]["precision"], 0.75)
+        self.assertAlmostEqual(pc["a"]["precision"], 0.80)
         self.assertEqual(pc["a"]["fp"], 5)
+
+    def test_zero_total_and_na_safe(self):
+        rows = [
+            _prec("b", "NA", 1, matched="0", total="0"),
+            _prec("b", "", 4, matched="0", total="0"),
+        ]
+        pc = rc.precision_by_caller(rows)
         self.assertIsNone(pc["b"]["precision"])
         self.assertEqual(pc["b"]["fp"], 5)
 
@@ -140,6 +147,15 @@ class TestIsStale(unittest.TestCase):
             r = _fixture_reports(d)
             self.assertFalse(rc.is_stale(r))
 
+    def test_not_stale_when_marker_older(self):
+        with tempfile.TemporaryDirectory() as d:
+            r = _fixture_reports(d)
+            marker = r / "per_sample" / "relocate2" / "s" / ".complete"
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+            os.utime(marker, (1, 1))  # marker old, correctness.tsv newer
+            self.assertFalse(rc.is_stale(r))
+
 
 class TestMain(unittest.TestCase):
     def test_writes_report_ranked_by_composite(self):
@@ -156,6 +172,11 @@ class TestMain(unittest.TestCase):
             # RT3 higher status accuracy -> higher composite -> ranked first
             self.assertLess(text.index("relocate3-bwa-bwa"), text.index("relocate2"))
             self.assertIn("20260722", text)
+
+    def test_missing_correctness_returns_1_no_raise(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = rc.main(["--reports-dir", d])
+            self.assertEqual(out, 1)
 
 
 if __name__ == "__main__":
