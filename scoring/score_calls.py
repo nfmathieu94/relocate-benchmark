@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import shutil
 from collections import defaultdict
 from pathlib import Path
 
@@ -104,8 +105,14 @@ def main(argv=None) -> int:
     ap.add_argument("--outdir", required=True, type=Path)
     args = ap.parse_args(argv)
     if args.outdir.exists() and any(args.outdir.iterdir()):
-        raise FileExistsError(f"Refusing non-empty report dir: {args.outdir}")
-    args.outdir.mkdir(parents=True)
+        if (args.outdir / ".complete").exists():
+            # Idempotent re-score: this dir holds THIS step's own completed
+            # output (.complete marker written below), so replace it cleanly.
+            # A non-empty dir WITHOUT the marker is foreign/partial -> still refuse.
+            shutil.rmtree(args.outdir)
+        else:
+            raise FileExistsError(f"Refusing non-empty report dir: {args.outdir}")
+    args.outdir.mkdir(parents=True, exist_ok=True)
     summary, matches, fps, precision_row = score(
         args.truth, args.calls, args.sample, args.caller, args.window)
     _write(args.outdir / "matches.tsv", matches)
