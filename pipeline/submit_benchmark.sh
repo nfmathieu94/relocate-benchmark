@@ -118,6 +118,62 @@ fi
 mkdir -p logs
 
 # ---------------------------------------------------------------------------
+# 2b. Pre-build shared TE-library aligner indexes (serial), before the array.
+#     RelocaTE3 builds its TE-library index INSIDE `relocaTE3 run` with an
+#     unlocked check-then-build (RelocaTE3 src/RelocaTE3/aligners.py). When many
+#     array tasks share one TE library they race on the same index prefix in the
+#     shared input dir and corrupt it (observed: bowtie2 "Index is corrupt ...
+#     size 0", then partial index -> ~0% alignment -> empty results). Building
+#     each needed index ONCE here makes every task's inline build a no-op,
+#     eliminating the race. The TE library is tiny, so this is cheap on the
+#     submit host. (Genome indexes are pre-built out-of-band and already present;
+#     they are not rebuilt here to avoid heavy compute on the submit node.)
+# ---------------------------------------------------------------------------
+eval "$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" globals)"
+
+_csv_has() {  # _csv_has <needle> <csv>; true if csv empty (no filter) or contains needle
+  local needle="$1" csv="$2" x
+  [[ -z "$csv" ]] && return 0
+  local IFS=,
+  for x in $csv; do [[ "$x" == "$needle" ]] && return 0; done
+  return 1
+}
+
+# Unique TE-library aligners across enabled RelocaTE3 callers in this submission
+# (honoring --caller). Non-RelocaTE3 callers emit no RT3_TE_ALIGNER and are skipped.
+TE_ALIGNERS=()
+while IFS= read -r caller; do
+  [[ -z "$caller" ]] && continue
+  _csv_has "$caller" "$FILTER_CALLER" || continue
+  cenv="$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" caller-env "$caller")"
+  te="$(sed -n 's/^RT3_TE_ALIGNER=//p' <<<"$cenv" | tr -d "'")"
+  [[ -n "$te" ]] && TE_ALIGNERS+=("$te")
+done < <("${PY[@]}" pipeline/config_env.py --config "$CONFIG" callers)
+
+if ((${#TE_ALIGNERS[@]} > 0)); then
+  # Activate the RelocaTE3 env so the pre-build tools match those the tasks use.
+  source callers/relocate3/env.sh
+  while IFS= read -r aligner; do
+    case "$aligner" in
+      bowtie2)
+        [[ -s "${TE_LIBRARY}.1.bt2" ]] || {
+          echo "[$(date)] pre-building bowtie2 index: $TE_LIBRARY"
+          bowtie2-build --quiet "$TE_LIBRARY" "$TE_LIBRARY"; } ;;
+      bwa)
+        [[ -s "${TE_LIBRARY}.bwt" ]] || {
+          echo "[$(date)] pre-building bwa index: $TE_LIBRARY"
+          bwa index "$TE_LIBRARY"; } ;;
+      minimap2)
+        [[ -s "${TE_LIBRARY}.mmi" ]] || {
+          echo "[$(date)] pre-building minimap2 index: $TE_LIBRARY"
+          minimap2 -d "${TE_LIBRARY}.mmi" "$TE_LIBRARY"; } ;;
+      blat) : ;;  # blat needs no persistent index
+      *) echo "WARN: unknown te-aligner '$aligner'; leaving its index to the task" >&2 ;;
+    esac
+  done < <(printf '%s\n' "${TE_ALIGNERS[@]}" | sort -u)
+fi
+
+# ---------------------------------------------------------------------------
 # 3. Submit the array. Propagate CONFIG to the tasks.
 # ---------------------------------------------------------------------------
 ARRAY_JOB="$(sbatch --parsable \
