@@ -20,7 +20,8 @@ pybedtools = "*"
 # on PATH to enable the relocate3-blat-* variants.
 
 [pypi-dependencies]
-# Frozen RelocaTE3: pinned to the multi-aligner merge on stajichlab/main
-# (PR #27, commit 3bac13d, 2026-07-20 -- the --te-aligner/--genome-aligner
-# release). HTTPS URL so pixi can clone without an SSH key on the cluster.
-RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "3bac13d7835260127ddc153c81a8e8e0b4ae5852" }
+# Frozen RelocaTE3: pinned to stajichlab/main at the bowtie2 --local fix merge
+# (2026-07-22, commit 60f7f09 -- bowtie2 TE-library mapping now soft-clips
+# junction reads; supersedes the multi-aligner release 3bac13d). HTTPS URL so
+# pixi can clone without an SSH key on the cluster.
+RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "60f7f09ad61207bbff3d97a8abd739e7505df1ad" }
