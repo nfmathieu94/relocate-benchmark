@@ -1,6 +1,16 @@
 """RelocaTE benchmark dashboard overview page."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# `streamlit run dashboard/app.py` puts only this file's directory on sys.path,
+# not the repo root, so the absolute `dashboard.*` imports below fail on first
+# load (they only start working once a page under dashboard/pages/ runs and adds
+# the repo root globally). Add the repo root here so the entry script imports
+# reliably on the very first load. Mirrors the inserts in dashboard/pages/*.py.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import streamlit as st
 
 from dashboard.components.filters import render_filters
