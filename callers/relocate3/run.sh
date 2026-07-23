@@ -193,7 +193,7 @@ relocaTE3 characterize \
   -b "$FULLREADS_BAM" \
   -g "$REFERENCE" \
   -o "$RAW/results" \
-  --samtools samtools --bcftools bcftools
+  --samtools samtools --bcftools "$RT3_BCFTOOLS"
 
 # ---------------------------------------------------------------------------
 # 6. Assert final characterized output exists and is non-empty.
