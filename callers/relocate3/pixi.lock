@@ -69,7 +69,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/python_abi-3.12-8_cp312.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/sysroot_linux-64-2.28-h4ee821c_9.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2026c-h151e31d_0.conda
-      - pypi: git+https://github.com/stajichlab/RelocaTE3.git?rev=3bac13d7835260127ddc153c81a8e8e0b4ae5852#3bac13d7835260127ddc153c81a8e8e0b4ae5852
+      - pypi: git+https://github.com/stajichlab/RelocaTE3.git?rev=60f7f09ad61207bbff3d97a8abd739e7505df1ad#60f7f09ad61207bbff3d97a8abd739e7505df1ad
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/65/b6/09b01cdbc15224e2850365192d17b7bdebb8bdbd8780ed221fcdf0d9a515/pandas-3.0.3-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/89/93/5878b1eed2e0b6662002d069763025e4374c16ad3d18d8e10a9fefac7b16/pybedtools-0.12.0.tar.gz
@@ -969,9 +969,9 @@ packages:
   run_exports: {}
   size: 118849
   timestamp: 1784250406640
-- pypi: git+https://github.com/stajichlab/RelocaTE3.git?rev=3bac13d7835260127ddc153c81a8e8e0b4ae5852#3bac13d7835260127ddc153c81a8e8e0b4ae5852
+- pypi: git+https://github.com/stajichlab/RelocaTE3.git?rev=60f7f09ad61207bbff3d97a8abd739e7505df1ad#60f7f09ad61207bbff3d97a8abd739e7505df1ad
   name: relocate3
-  version: 0.1.0.post92+g3bac13d
+  version: 0.1.0.post95+g60f7f09
   requires_dist:
   - biopython>=1.81
   - pybedtools
