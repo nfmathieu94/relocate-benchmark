@@ -8,6 +8,15 @@ relocate2	cov15x_rep3	15	3	329	329	0	1.0	0.0
 relocate2	cov30x_rep1	30	1	412	412	0	1.0	0.0
 relocate2	cov30x_rep2	30	2	406	406	0	1.0	0.0
 relocate2	cov30x_rep3	30	3	403	403	0	1.0	0.0
+relocate3-bowtie2-bwa	cov5x_rep1	5	1	199	199	0	1.0	0.0
+relocate3-bowtie2-bwa	cov5x_rep2	5	2	213	213	0	1.0	0.0
+relocate3-bowtie2-bwa	cov5x_rep3	5	3	220	220	0	1.0	0.0
+relocate3-bowtie2-bwa	cov15x_rep1	15	1	321	321	0	1.0	0.0
+relocate3-bowtie2-bwa	cov15x_rep2	15	2	329	329	0	1.0	0.0
+relocate3-bowtie2-bwa	cov15x_rep3	15	3	334	334	0	1.0	0.0
+relocate3-bowtie2-bwa	cov30x_rep1	30	1	405	405	0	1.0	0.0
+relocate3-bowtie2-bwa	cov30x_rep2	30	2	397	397	0	1.0	0.0
+relocate3-bowtie2-bwa	cov30x_rep3	30	3	404	403	1	0.9975247524752475	0.0024752475247524774
 relocate3-bwa-bwa	cov5x_rep1	5	1	198	198	0	1.0	0.0
 relocate3-bwa-bwa	cov5x_rep2	5	2	213	213	0	1.0	0.0
 relocate3-bwa-bwa	cov5x_rep3	5	3	218	218	0	1.0	0.0
