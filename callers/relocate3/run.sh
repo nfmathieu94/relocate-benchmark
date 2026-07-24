@@ -152,7 +152,9 @@ relocaTE3 align-genome \
   -n "$SAMPLE" \
   -o "$RAW" \
   --threads "$THREADS" \
-  --genome-aligner "$RT3_GENOME_ALIGNER"
+  --genome-aligner "$RT3_GENOME_ALIGNER" \
+  -1 "$R1" \
+  -2 "$R2"
 
 if [[ ! -s "$GENOME_BAM" ]]; then
   echo "ERROR: expected genome-aligned BAM not produced: $GENOME_BAM" >&2
