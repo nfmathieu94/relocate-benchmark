@@ -95,6 +95,28 @@ class TestCombineReports(unittest.TestCase):
         self.assertEqual(header[:4], ["caller", "sample", "coverage", "replicate"])
         self.assertIn("overall_precision", header)
 
+    def test_renamed_archive_caller_directory_is_ignored(self):
+        archived = self.report / "per_sample" / "relocate3.pre-fix" / "cov5x_rep1"
+        _write(
+            archived / "correctness.tsv",
+            CORR_HEADER,
+            [_corr_row("relocate3", "homozygous", "0.0")],
+        )
+        _write(
+            archived / "precision.tsv",
+            PREC_HEADER,
+            [_prec_row("relocate3")],
+        )
+
+        rc = main(["--report-root", str(self.report), "--samples", str(self.samples)])
+        self.assertEqual(rc, 0)
+        with open(self.report / "correctness.tsv") as fh:
+            correctness = list(csv.DictReader(fh, delimiter="\t"))
+        with open(self.report / "precision.tsv") as fh:
+            precision = list(csv.DictReader(fh, delimiter="\t"))
+        self.assertEqual(len(correctness), 2)
+        self.assertEqual(len(precision), 2)
+
     def test_empty_per_sample_does_not_crash(self):
         empty = self.root / "empty_reports"
         (empty / "per_sample").mkdir(parents=True)

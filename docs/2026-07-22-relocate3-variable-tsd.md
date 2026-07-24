@@ -33,3 +33,19 @@ bash -n callers/relocate3/env.sh callers/relocate3/run.sh
 (not on the login node), then aggregate and inspect exact-TSD accuracy. Existing
 completed run directories require deliberate removal or a new work root because
 the adapter's idempotency guard will otherwise skip them.
+
+## Post-run integration failure and fix
+
+The first full `UNK` benchmark completed all 27 RelocaTE3 tasks but scored zero
+detected events. The variable-length path emitted `TE=NA` because genome-aligned
+junction names include `:start|end:5|3`, while `read_repeat_name.txt` is keyed by
+the original untagged read name. The TE-family lookup now strips that suffix
+before lookup. RelocaTE3 outputs from that first run must be regenerated; rescoring
+the existing normalized files is insufficient because they already contain
+`te_family=NA`.
+
+Archived per-sample reports were initially retained under `reports/per_sample`
+with a `.pre-te-family-fix` suffix. The aggregator's caller wildcard also found
+those directories, creating duplicate combined rows. Aggregation now verifies
+that each row's caller matches its containing caller directory and skips renamed
+archives, preventing stale and active reports from being combined.
