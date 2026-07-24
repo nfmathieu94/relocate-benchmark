@@ -43,6 +43,26 @@ def _int_or_inf(value):
         return (1, str(value))
 
 
+def _belongs_to_caller_dir(path, rows, caller_parent):
+    """Return whether every row's caller matches its containing caller directory.
+
+    This prevents renamed/archive directories left under ``reports/per_sample``
+    or ``reports/resources`` from being combined with the active reports. For
+    example, rows that still say ``relocate3-bwa-bwa`` must not be loaded from a
+    directory renamed to ``relocate3-bwa-bwa.pre-te-family-fix``.
+    """
+    expected = Path(path).parents[caller_parent].name
+    observed = {row.get("caller", "") for row in rows}
+    if observed and observed != {expected}:
+        print(
+            f"WARNING: skipping archived or misplaced report {path}: "
+            f"directory caller={expected!r}, row caller(s)={sorted(observed)!r}",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def _combine_correctness(report_root, samples_path, out_path):
     meta = _load_sample_meta(samples_path)
     paths = sorted(glob.glob(str(report_root / "per_sample" / "*" / "*" / "correctness.tsv")))
@@ -54,6 +74,8 @@ def _combine_correctness(report_root, samples_path, out_path):
     seen = set()
     for path in paths:
         fields, file_rows = _read_tsv(path)
+        if not _belongs_to_caller_dir(path, file_rows, caller_parent=1):
+            continue
         for f in fields:
             if f not in seen:
                 seen.add(f)
@@ -104,6 +126,8 @@ def _combine_precision(report_root, samples_path, out_path):
     seen = set()
     for path in paths:
         fields, file_rows = _read_tsv(path)
+        if not _belongs_to_caller_dir(path, file_rows, caller_parent=1):
+            continue
         for f in fields:
             if f not in seen:
                 seen.add(f)
@@ -151,6 +175,8 @@ def _combine_resources(report_root, out_path):
     seen = set()
     for path in paths:
         file_fields, file_rows = _read_tsv(path)
+        if not _belongs_to_caller_dir(path, file_rows, caller_parent=0):
+            continue
         for f in file_fields:
             if f not in seen:
                 seen.add(f)
