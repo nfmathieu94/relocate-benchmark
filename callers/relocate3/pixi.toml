@@ -20,9 +20,9 @@ pybedtools = "*"
 # on PATH to enable the relocate3-blat-* variants.
 
 [pypi-dependencies]
-# Frozen RelocaTE3: pinned to stajichlab/main at the align-genome mate-anchor fix
-# (2026-07-24, commit b2f55a9 -- the align-genome CLI subcommand now mate-anchors
-# ambiguous junction flanks with -1/-2, so the benchmark's granular-CLI path gets
-# the paired-flank TSD fix). HTTPS URL so pixi can clone without an SSH key on the
-# cluster.
-RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "b2f55a93fbb16cffece9ee23a1489476ffa4eea4" }
+# Frozen RelocaTE3: pinned to stajichlab/main at the bwa TE mate-suffix fix
+# (2026-07-24, commit 35ca17d -- BwaBackend.map_te_library restores the /1,/2
+# suffix bwa strips, so the bwa TE-aligner mate-anchors flanks instead of
+# scattering them single-end; includes the earlier align-genome mate-anchor and
+# cross-device-move fixes). HTTPS URL so pixi can clone without an SSH key.
+RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "35ca17d4742bb2f494b55c916036a854827ee818" }
