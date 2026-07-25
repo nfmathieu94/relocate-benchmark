@@ -30,6 +30,16 @@ if ! command -v "$RT3_BCFTOOLS" >/dev/null 2>&1 && [[ -x "$_here/.pixi/envs/defa
 fi
 export RT3_BCFTOOLS
 
+# Optional BLAT backend (relocate3-blat-* variants). blat's bioconda build pins an
+# old zlib that conflicts with the RT3 dev env's matplotlib, so it lives in an
+# isolated pixi env (callers/relocate3/blat-env). blat v35+ is self-contained (no
+# runtime libz), so we just prepend its bin -- best-effort, so non-blat variants
+# work without it. The blat backend errors clearly if a blat variant runs without it.
+_blat_bin="$_here/blat-env/.pixi/envs/default/bin"
+if [[ -x "$_blat_bin/blat" ]]; then
+  export PATH="$_blat_bin:$PATH"
+fi
+
 for tool in relocaTE3 minimap2 samtools "$RT3_BCFTOOLS"; do
   command -v "$tool" >/dev/null 2>&1 || {
     echo "ERROR: $tool not available after activating RelocaTE3 env" >&2

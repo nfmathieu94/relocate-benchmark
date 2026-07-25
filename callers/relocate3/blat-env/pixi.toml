@@ -1,0 +1,13 @@
+[workspace]
+name = "relocate3-blat"
+description = "Isolated BLAT for the RelocaTE3 blat TE-search variants (relocate3-blat-*)"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+# BLAT lives in its own pixi env, NOT the RelocaTE3 runtime, because the bioconda
+# `blat` build pins an old zlib that conflicts with the RT3 dev env's matplotlib
+# (pixi refuses to co-solve them). blat v35 is self-contained (no runtime libz),
+# so callers/relocate3/env.sh just prepends this env's bin to PATH; blat runs as a
+# subprocess, isolated from the RT3 stack. Enables the relocate3-blat-* variants.
+[dependencies]
+blat = "*"

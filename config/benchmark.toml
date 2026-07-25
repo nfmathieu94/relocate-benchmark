@@ -63,7 +63,7 @@ label          = "RelocaTE3-bowtie2/bwa"
 
 # Opt-in (needs `blat` on PATH; not pinned -- bioconda blat conflicts with matplotlib).
 [callers.relocate3-blat-bwa]
-enabled        = false
+enabled        = true
 adapter        = "callers/relocate3"
 repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd            = "UNK"
