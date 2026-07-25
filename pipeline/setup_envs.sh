@@ -9,7 +9,7 @@ if ! command -v pixi >/dev/null 2>&1; then
   exit 1
 fi
 echo "[$(date)] provisioning frozen pixi environments"
-for m in callers/relocate3 env/benchmark; do
+for m in callers/relocate3 callers/relocate3/blat-env env/benchmark; do
   echo "== pixi install: $m =="
   ( cd "$m" && pixi install )
 done
