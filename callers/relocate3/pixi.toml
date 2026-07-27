@@ -20,9 +20,9 @@ pybedtools = "*"
 # on PATH to enable the relocate3-blat-* variants.
 
 [pypi-dependencies]
-# Frozen RelocaTE3: pinned to stajichlab/main at the BLAT backend fixes
-# (2026-07-24, commit f310a4d -- BlatBackend now converts the FASTQ query to FASTA
-# and fills SAM SEQ from the query, so the blat TE-aligner actually produces
-# flanking reads; includes the bwa mate-suffix, align-genome mate-anchor, and
-# cross-device-move fixes). HTTPS URL so pixi can clone without an SSH key.
-RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "f310a4d85393439bfef522cd5b15306c8ecb794c" }
+# Frozen RelocaTE3: pinned to stajichlab/main at the RelocaTE2-parity calling fixes
+# (2026-07-27, commit 00a64a9 -- support-dominant breakpoint pairing +
+# --require-both-junctions, which run.sh enables; includes the BLAT backend, bwa
+# mate-suffix, align-genome mate-anchor, and cross-device-move fixes). HTTPS URL
+# so pixi can clone without an SSH key.
+RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "00a64a96c92ab6d8d75cc0776a7f41d09615cf05" }
