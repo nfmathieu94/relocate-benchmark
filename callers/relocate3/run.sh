@@ -173,7 +173,8 @@ relocaTE3 find-insertions \
   --te-name "$TE_NAME" \
   --reference-ins "$REPEATMASKER" \
   --mismatch "$RT3_MISMATCH" \
-  --min-mapq "$RT3_MIN_MAPQ"
+  --min-mapq "$RT3_MIN_MAPQ" \
+  --require-both-junctions
 
 if [[ ! -s "$NONREF_TXT" ]]; then
   echo "ERROR: expected non-reference insertion table not produced: $NONREF_TXT" >&2
