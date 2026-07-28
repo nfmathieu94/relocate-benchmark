@@ -70,3 +70,15 @@ tsd            = "UNK"
 te_aligner     = "blat"
 genome_aligner = "bwa"
 label          = "RelocaTE3-blat/bwa"
+
+# True RelocaTE2 parity: BLAT TE-search + bwa aln flank->genome (samse/sampe),
+# exactly RelocaTE2's aligner choice. bwa aln (modern bwa 0.7.19) has no seed
+# floor, so it places the short junction flanks bwa mem/minimap2 drop.
+[callers.relocate3-blat-bwaaln]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "UNK"
+te_aligner     = "blat"
+genome_aligner = "bwaaln"
+label          = "RelocaTE3-blat/bwa-aln"
