@@ -39,3 +39,6 @@ __pycache__/
 
 # RelocaTE2 BioContainer images (large; regenerable from callers/relocate2/images.txt)
 callers/relocate2/images/
+
+# Stray samtools/bwa temp files left by interrupted pipes (e.g. STDIN.tmp.0024.bam)
+STDIN.tmp.*
