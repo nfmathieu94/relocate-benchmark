@@ -7,6 +7,8 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 
+TE_DIMENSIONS = ("te_group", "te_class", "te_order", "te_superfamily")
+
 
 def _norm(v: str) -> str:
     # Strip any RepeatMasker class/family suffix so caller TE names match the
@@ -31,6 +33,15 @@ def score(truth_path, calls_path, sample: str, caller: str, window: int):
     used: set[int] = set()
     matches = []
     for ev in sorted(truth, key=lambda r: (r["chrom"], int(r["position"]))):
+        # A family-level fallback gives legacy single-TE truth a stable group,
+        # while multi-TE truth retains its curated hierarchy.
+        ev = {
+            **ev,
+            "te_group": ev.get("te_group") or ev.get("te_family", ""),
+            "te_class": ev.get("te_class", ""),
+            "te_order": ev.get("te_order", ""),
+            "te_superfamily": ev.get("te_superfamily", ""),
+        }
         cands = [
             (abs(int(ev["position"]) - int(c["position"])), i, c)
             for i, c in by_chrom[ev["chrom"]]
@@ -51,19 +62,25 @@ def score(truth_path, calls_path, sample: str, caller: str, window: int):
         })
     fps = [c for i, c in enumerate(calls) if i not in used]
     summary = []
-    # Group per-class metrics by the (biological_class, cellular_fraction) pair so
-    # somatic events break out by cellular fraction while hom/het (cellular_fraction
-    # 1.0, or "" for truth files lacking the column) each yield a single row.
+    # Preserve the truth hierarchy in count-backed rows. Existing high-level
+    # reports pool these rows by summing numerators/denominators; TE-specific
+    # reports group them by one or more dimensions below.
     groups: dict = {}
     for m in matches:
-        key = (m["biological_class"], m.get("cellular_fraction", ""))
+        key = (
+            m["biological_class"],
+            m.get("cellular_fraction", ""),
+            *(m.get(field, "") for field in TE_DIMENSIONS),
+        )
         groups.setdefault(key, []).append(m)
-    for (label, cell_frac) in sorted(groups):
-        grp = groups[(label, cell_frac)]
+    for key in sorted(groups):
+        label, cell_frac, *te_values = key
+        grp = groups[key]
         det = [m for m in grp if m["matched"] == "1"]
         summary.append({
             "caller": caller, "sample": sample, "biological_class": label,
             "cellular_fraction": cell_frac,
+            **dict(zip(TE_DIMENSIONS, te_values)),
             "expected_vaf": grp[0].get("expected_vaf", ""),
             "truth_events": len(grp), "detected_events": len(det),
             "detection_recall": (len(det) / len(grp)) if grp else "NA",

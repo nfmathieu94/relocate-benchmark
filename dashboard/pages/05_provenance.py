@@ -26,17 +26,19 @@ def main() -> None:
     render_filters(bundle)
 
     st.title("Provenance and interpretation")
-    st.warning(
-        "The current benchmark uses a fixed-length 3-bp wildcard TSD pattern "
-        "for RelocaTE3 while the truth panel contains 4–5 bp TSDs. Interpret "
-        "exact-TSD accuracy with that limitation."
+    st.info(
+        f"Showing provenance for dataset: {bundle.dataset_label} "
+        f"(`{bundle.dataset_key}`). RelocaTE3 uses `tsd = \"UNK\"` and infers "
+        "variable TSD lengths from junction reads."
     )
 
     config_path = Path("config/benchmark.toml")
     if config_path.is_file():
         with open(config_path, "rb") as handle:
             config = tomllib.load(handle)
-        dataset = config.get("dataset", {})
+        dataset = config.get("datasets", {}).get(
+            bundle.dataset_key, config.get("dataset", {})
+        )
         callers = {
             name: values
             for name, values in config.get("callers", {}).items()

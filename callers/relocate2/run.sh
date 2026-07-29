@@ -74,7 +74,7 @@ mkdir -p "$RAW" "$FQ_DIR" "$BAM_DIR"
 # ---------------------------------------------------------------------------
 # 4. Put relocaTE2.py / bwa / samtools on PATH.
 # ---------------------------------------------------------------------------
-ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${ADAPTER_DIR:=callers/relocate2}"
 # shellcheck source=env.sh
 source "$ADAPTER_DIR/env.sh"
 
@@ -104,8 +104,12 @@ echo "  size        : $RT2_SIZE"
 echo "  mismatch    : $RT2_MISMATCH"
 
 echo "[$(date)] building reads-to-genome BAM: $GENOME_BAM"
+# -T gives samtools a task-specific temp prefix under this sample's own BAM dir.
+# Without it, sorting from the bwa-mem pipe spills to "STDIN.tmp.*.bam" in the
+# shared CWD, so concurrent array tasks truncate one another's temp files (only
+# surfaces when the BAM is large enough to spill, e.g. the multi-TE panel).
 bwa mem -t "$THREADS" "$REFERENCE" "$R1" "$R2" \
-  | samtools sort -@ "$THREADS" -o "${GENOME_BAM}.tmp"
+  | samtools sort -@ "$THREADS" -T "$BAM_DIR/sort.${SAMPLE}" -o "${GENOME_BAM}.tmp"
 mv -f "${GENOME_BAM}.tmp" "$GENOME_BAM"
 samtools index "$GENOME_BAM"
 

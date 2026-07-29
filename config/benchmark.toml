@@ -3,16 +3,35 @@
 # (outside this repo). Caller run outputs go under [run].work_root (gitignored).
 # ${section.key} references are expanded by lib/config.py.
 
-[dataset]
+[benchmark]
+# Used when pipeline/submit_benchmark.sh is invoked without --dataset.
+# Use --dataset full to run every enabled table under [datasets].
+default_dataset = "mping"
+
+[datasets.mping]
+enabled      = true
+label        = "mPing only"
 panel_root   = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/somatic_mping_panel_chr1"
 reference    = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
 te_library   = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/TE_lib/mping_superfam_header.fa"
 repeatmasker = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/repeatmasker/MSU_r7.fa.out"
 te_name      = "mPing"
 
+[datasets.ricetelib]
+enabled          = true
+label            = "riceTElib multi-TE"
+panel_root       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_benchmark"
+reference        = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+te_library       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_benchmark/selected_te_library.fa"
+repeatmasker     = "cache/reference_annotations/MSU_r7.full.repeatmasker.out"
+repeatmasker_gff = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa.RepeatMasker.out.gff"
+te_name          = "riceTElib"
+
 [run]
-work_root = "runs"     # inside repo, gitignored
-threads   = 8
+work_root  = "runs"     # inside repo, gitignored
+report_root = "reports"
+truth_root  = "truth"
+threads     = 8
 
 [scoring]
 match_window = 10

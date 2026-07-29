@@ -1,13 +1,13 @@
-# Data provenance — simulated Chr1 mPing panel
+# Data provenance — external simulated benchmark panels
 
-Date/time: 2026-07-15 America/Los_Angeles
+Date/time: 2026-07-28 America/Los_Angeles
 
 ## Purpose
 
 Record where the simulated benchmark data lives and how it was generated. This
 repo runs and scores callers; it does **not** generate data. The data lives
 outside this repo and is referenced by config path
-(`config/benchmark.toml` → `[dataset].panel_root`).
+(`config/benchmark.toml` → `[datasets.<key>].panel_root`).
 
 ## Where the data lives
 
@@ -19,6 +19,18 @@ outside this repo and is referenced by config path
 
 Contains per-sample reads, `truth_events.tsv`, `panel_manifest.tsv`, and
 `run_metadata.json`. The benchmark never writes here — it only reads via config.
+
+The multi-TE panel is:
+
+```text
+/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_benchmark
+```
+
+It contains the same panel contract plus `selected_te_library.fa`,
+`selected_te_catalog.tsv`, and `te_group_manifest.tsv`. Its 500 events are
+balanced across ten TE groups. Its generation and TSD literature rationale are
+documented in the simulation project at
+`docs/2026-07-27-riceTElib-benchmark-workflow.md`.
 
 ## How it was generated
 

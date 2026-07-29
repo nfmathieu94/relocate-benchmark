@@ -2,7 +2,7 @@
 # Activate the configured RelocaTE3 development environment.  This is the source
 # tree under test, including the variable-length ``--tsd UNK`` inference path.
 set -euo pipefail
-_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_here="${ADAPTER_DIR:-callers/relocate3}"
 _manifest="${RT3_REPO:-}/pixi.toml"
 
 if command -v pixi >/dev/null 2>&1 && [[ -n "${RT3_REPO:-}" ]] && [[ -f "$_manifest" ]]; then

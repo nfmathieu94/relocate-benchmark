@@ -5,17 +5,15 @@
 #SBATCH --time=00:30:00
 #SBATCH -o logs/aggregate.%j.log
 #
-# relocate-benchmark post-array aggregation.
-#
-# Runs after ALL array tasks finish (submitted with a SLURM afterok dependency
-# by pipeline/submit_benchmark.sh). Combines per-sample reports, computes the
-# head-to-head caller comparison, and (best-effort) renders a PDF report.
+# Aggregate every selected dataset independently and refresh the dashboard
+# dataset manifest. Normally submitted afterok by submit_benchmark.sh.
 set -euo pipefail
 
-cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
+BASE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
+cd "$BASE_DIR"
+CONFIG="${CONFIG:-config/benchmark.toml}"
+DATASET_SELECTION="${DATASET_SELECTION:-full}"
 
-# Prefer the frozen benchmark env's python (pinned >=3.11); fall back to a system
-# python3.12. Array form so call sites expand as "${PY[@]}".
 if command -v pixi >/dev/null 2>&1 && [[ -f env/benchmark/pixi.toml ]]; then
   PY=(pixi run --manifest-path env/benchmark/pixi.toml python3)
 else
@@ -23,55 +21,54 @@ else
   PY=(python3.12)
 fi
 
-echo "[$(date)] aggregate: starting in $(pwd)"
+eval "$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" globals)"
+mkdir -p logs "$REPORT_ROOT/datasets"
 
-mkdir -p logs reports
+DATASET_ROWS="$(
+  "${PY[@]}" pipeline/config_env.py --config "$CONFIG" \
+    --dataset "$DATASET_SELECTION" datasets
+)"
 
-# ---------------------------------------------------------------------------
-# 1. Combine per-sample correctness/precision/resources into reports/*.tsv.
-# ---------------------------------------------------------------------------
-echo "[$(date)] combining per-sample reports"
-"${PY[@]}" scoring/combine_reports.py \
-  --report-root reports \
-  --samples truth/samples.tsv
+while IFS=$'\t' read -r dataset label panel_root; do
+  [[ -n "$dataset" ]] || continue
+  eval "$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" dataset-env "$dataset")"
+  echo "[$(date)] aggregating dataset: $dataset ($label)"
+  mkdir -p "$DATASET_REPORT_ROOT"
 
-# ---------------------------------------------------------------------------
-# 2. Head-to-head caller comparison.
-# ---------------------------------------------------------------------------
-echo "[$(date)] comparing callers"
-"${PY[@]}" scoring/compare_callers.py \
-  --correctness reports/correctness.tsv \
-  --outdir reports
+  "${PY[@]}" scoring/combine_reports.py \
+    --report-root "$DATASET_REPORT_ROOT" \
+    --samples "$DATASET_TRUTH_ROOT/samples.tsv"
 
-# ---------------------------------------------------------------------------
-# 3. Best-effort PDF report (never fails the job).
-# ---------------------------------------------------------------------------
-PDF="reports/benchmark_report.pdf"
-if [[ -f scoring/make_report.R ]]; then
-  echo "[$(date)] rendering PDF report (best-effort)"
-  BENCH_ENV="env/benchmark/pixi.toml"
-  if command -v pixi >/dev/null 2>&1 && [[ -f "$BENCH_ENV" ]]; then
-    RUN_R=(pixi run --manifest-path "$BENCH_ENV" Rscript)
-  else
-    echo "WARN: benchmark pixi env unavailable; using unpinned module R" >&2
-    command -v module >/dev/null 2>&1 && { module load R || true; }
-    RUN_R=(Rscript)
+  "${PY[@]}" scoring/compare_callers.py \
+    --correctness "$DATASET_REPORT_ROOT/correctness.tsv" \
+    --outdir "$DATASET_REPORT_ROOT"
+
+  pdf="$DATASET_REPORT_ROOT/benchmark_report.pdf"
+  if [[ -f scoring/make_report.R ]]; then
+    if command -v pixi >/dev/null 2>&1 && [[ -f env/benchmark/pixi.toml ]]; then
+      RUN_R=(pixi run --manifest-path env/benchmark/pixi.toml Rscript)
+    else
+      command -v module >/dev/null 2>&1 && { module load R || true; }
+      RUN_R=(Rscript)
+    fi
+    if ! "${RUN_R[@]}" scoring/make_report.R "$DATASET_REPORT_ROOT" "$pdf"; then
+      echo "WARN: PDF report failed for dataset $dataset" >&2
+    fi
   fi
-  if ! "${RUN_R[@]}" scoring/make_report.R reports "$PDF"; then
-    echo "WARN: PDF report step failed" >&2
-  fi
-else
-  echo "[$(date)] note: scoring/make_report.R absent; skipping PDF report"
-fi
+done <<< "$DATASET_ROWS"
 
-# ---------------------------------------------------------------------------
-# 4. Report produced paths.
-# ---------------------------------------------------------------------------
-echo "[$(date)] aggregation complete. Reports:"
-echo "  reports/correctness.tsv"
-echo "  reports/precision.tsv"
-echo "  reports/resources.tsv"
-echo "  reports/head_to_head.tsv"
-if [[ -f "$PDF" ]]; then
-  echo "  $PDF"
-fi
+# Include every complete dataset report, not only the latest selection, so a
+# riceTElib-only refresh does not remove a prior mPing tab from the dashboard.
+manifest="$REPORT_ROOT/datasets.tsv"
+temporary="${manifest}.tmp.$$"
+printf 'dataset\tlabel\treport_dir\n' > "$temporary"
+while IFS=$'\t' read -r dataset label panel_root; do
+  report_dir="$REPORT_ROOT/datasets/$dataset"
+  if [[ -s "$report_dir/correctness.tsv" && -s "$report_dir/precision.tsv" &&
+        -s "$report_dir/head_to_head.tsv" && -s "$report_dir/resources.tsv" ]]; then
+    printf '%s\t%s\tdatasets/%s\n' "$dataset" "$label" "$dataset" >> "$temporary"
+  fi
+done < <("${PY[@]}" pipeline/config_env.py --config "$CONFIG" --dataset full datasets)
+mv -f "$temporary" "$manifest"
+
+echo "[$(date)] aggregation complete; dashboard manifest: $manifest"

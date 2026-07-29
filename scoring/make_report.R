@@ -102,6 +102,22 @@ p4 <- line_sem(som) +
        subtitle = "Lower cellular fraction = lower variant allele frequency = harder (mean ± SEM)",
        x = "Coverage (x)", y = "Somatic recall")
 
+# ---- Multi-TE page: recall by curated TE group ---------------------------
+p_te <- NULL
+if ("te_group" %in% names(corr) && dplyr::n_distinct(corr$te_group) > 1) {
+  te_recall <- corr %>%
+    group_by(caller, coverage, replicate, te_group) %>%
+    summarise(recall = sum(detected_events) / sum(truth_events), .groups = "drop") %>%
+    group_by(caller, coverage, te_group) %>%
+    summarise(mean = mean(recall), se = sem(recall), .groups = "drop")
+  p_te <- line_sem(te_recall) +
+    facet_wrap(~te_group, ncol = 3) +
+    scale_y_continuous(limits = c(0, 1), labels = percent) +
+    labs(title = "Detection recall by TE group",
+         subtitle = "Curated riceTElib truth groups (mean ± SEM across replicates)",
+         x = "Coverage (x)", y = "Detection recall")
+}
+
 # ---- Publication pages (B1-B4) and diagnostic pages (A1-A4) ---------------
 pB1 <- plot_lod(matches)
 pB2 <- plot_pr(corr, prec)
@@ -115,6 +131,7 @@ pA4 <- plot_missed_profile(matches)
 # Section order: Headline -> Diagnostics -> Resources (appended below if present).
 pages <- list(p1, p2, p3, p4, pB1, pB2, pB3, pB4,  # Headline
               pA1, pA2, pA3, pA4)                    # Diagnostics
+if (!is.null(p_te)) pages <- append(pages, list(p_te), after = 4)
 
 # ---- Page 5: resources (optional) ----------------------------------------
 if (!is.null(res)) {
@@ -159,6 +176,7 @@ cat(sprintf("Wrote %s (%d pages)\n", out_pdf, length(pages)))
 fig_dir <- file.path(reports_dir, "figures")
 dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
 standalone <- list(lod50 = pB1, precision_recall = pB2, confusion_matrix = pA1)
+if (!is.null(p_te)) standalone$te_group_recall <- p_te
 for (nm in names(standalone)) {
   p <- standalone[[nm]] + theme_lab()
   if (exists("save_figure")) {

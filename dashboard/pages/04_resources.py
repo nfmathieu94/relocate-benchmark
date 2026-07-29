@@ -25,7 +25,8 @@ def main() -> None:
 
     st.title("Computational resources")
     st.caption(
-        "Measurements are comparable only when runs used the benchmark's "
+        f"Dataset: {bundle.dataset_label}. Measurements are comparable only when "
+        "runs used the benchmark's "
         "standardized SLURM resources and execution conditions."
     )
     if resources.empty:

@@ -2,6 +2,9 @@
 runs/*
 !runs/.gitkeep
 
+# Derived external annotations (regenerated deterministically from configured source)
+cache/
+
 # Logs
 logs/*
 !logs/.gitkeep
@@ -13,6 +16,7 @@ reports/per_sample/*
 
 # Per-sample resource outputs (regenerable per-run); combined reports/*.tsv stay tracked
 reports/resources/
+reports/datasets/
 
 # Standalone publication figures (large, regenerable by make_report.R)
 reports/figures/
@@ -22,6 +26,7 @@ reports/caller_ranking_*.md
 
 # Truth completion sentinel (data itself is small + tracked)
 truth/.complete
+truth/*/
 
 # Python
 __pycache__/
@@ -34,3 +39,6 @@ __pycache__/
 
 # RelocaTE2 BioContainer images (large; regenerable from callers/relocate2/images.txt)
 callers/relocate2/images/
+
+# Stray samtools/bwa temp files left by interrupted pipes (e.g. STDIN.tmp.0024.bam)
+STDIN.tmp.*

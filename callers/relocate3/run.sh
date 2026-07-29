@@ -71,7 +71,7 @@ mkdir -p "$RAW"
 # ---------------------------------------------------------------------------
 # 4. Activate the RelocaTE3 pixi environment (puts tools on PATH).
 # ---------------------------------------------------------------------------
-ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${ADAPTER_DIR:=callers/relocate3}"
 # shellcheck source=env.sh
 source "$ADAPTER_DIR/env.sh"
 
@@ -109,13 +109,14 @@ echo "  te_name/TSD : ${TE_NAME}/${TSD_PATTERN}"
 echo "  target      : $TARGET"
 echo "  min-mapq    : $RT3_MIN_MAPQ"
 
-# Step 1: index the reference genome (skip if .fai + .mmi already exist).
+# Reference inputs are external and read-only to this benchmark. Substantial
+# indexing also does not belong inside every array task.
 if [[ ! -s "${REFERENCE}.fai" || ! -s "${REFERENCE}.mmi" ]]; then
-  echo "[$(date)] index-genome"
-  relocaTE3 index-genome -g "$REFERENCE"
-else
-  echo "[$(date)] genome already indexed (.fai + .mmi present), skipping index-genome"
+  echo "ERROR: prebuilt reference indexes are required (.fai and .mmi)" >&2
+  echo "       Build them through a separate HPC job before submission." >&2
+  exit 1
 fi
+echo "[$(date)] genome already indexed (.fai + .mmi present)"
 
 # Steps 2+3: align reads to the TE library and trim TE sequence from them.
 echo "[$(date)] run (map + trim)"

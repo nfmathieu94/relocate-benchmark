@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from dashboard.data.loaders import load_reports
+from dashboard.data.loaders import load_report_suite, load_reports
 from dashboard.data.validation import ReportValidationError
 
 
@@ -67,6 +67,26 @@ class TestDashboardLoaders(unittest.TestCase):
             pd.concat([frame, frame.iloc[[0]]]).to_csv(path, sep="\t", index=False)
             with self.assertRaisesRegex(ReportValidationError, "duplicate row"):
                 load_reports(report_dir)
+
+    def test_dataset_manifest_loads_isolated_bundles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "reports"
+            (root / "datasets").mkdir(parents=True)
+            shutil.copytree(FIXTURE_DIR, root / "datasets" / "mping")
+            shutil.copytree(FIXTURE_DIR, root / "datasets" / "ricetelib")
+            (root / "datasets.tsv").write_text(
+                "dataset\tlabel\treport_dir\n"
+                "mping\tmPing only\tdatasets/mping\n"
+                "ricetelib\triceTElib multi-TE\tdatasets/ricetelib\n"
+            )
+            suite = load_report_suite(root)
+            self.assertEqual(
+                [bundle.dataset_key for bundle in suite.datasets],
+                ["mping", "ricetelib"],
+            )
+            self.assertEqual(
+                suite.by_key("ricetelib").dataset_label, "riceTElib multi-TE"
+            )
 
 
 if __name__ == "__main__":

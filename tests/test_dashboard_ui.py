@@ -11,6 +11,7 @@ ENTRYPOINTS = {
     Path("dashboard/app.py"): "RelocaTE benchmark dashboard",
     Path("dashboard/pages/02_accuracy.py"): "Accuracy",
     Path("dashboard/pages/03_somatic.py"): "Somatic insertion performance",
+    Path("dashboard/pages/04_te_groups.py"): "Performance by TE group",
     Path("dashboard/pages/04_resources.py"): "Computational resources",
     Path("dashboard/pages/05_provenance.py"): "Provenance and interpretation",
 }
@@ -37,4 +38,3 @@ class TestDashboardUI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

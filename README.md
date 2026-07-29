@@ -14,9 +14,11 @@ data.
 
 - Simulated reads, truth, and genomes are generated elsewhere (in the
   `make_simulation_new` project) and referenced by config path
-  (`config/benchmark.toml` → `[dataset].panel_root`). See
+  (`config/benchmark.toml` → `[datasets.<key>].panel_root`). See
   [`docs/data_provenance.md`](docs/data_provenance.md) for where the data lives
   and how to regenerate it.
+- External panels are read-only. Caller libraries are staged under
+  `cache/te_libraries/<dataset>/` before aligner indexes are created.
 - Large caller outputs and alignments (BAMs, raw caller results) live inside
   this repo under `runs/`, which is **gitignored**. Only scripts, config, docs,
   small normalized truth, and the three combined summary tables under `reports/`
@@ -78,9 +80,9 @@ relocate-benchmark/
 ├── scoring/    export_truth, score_calls, combine_reports, compare_callers, parse_time_v, make_report.R
 ├── pipeline/   submit_benchmark.sh, run_benchmark_array.sh, aggregate.sh, update_relocate3.sh, config_env.py
 ├── lib/        config.py (stdlib TOML + ${section.key} interpolation), calls.py (schema)
-├── truth/      normalized truth exported from the panel (small, TRACKED)
-├── reports/    combined summary tables + benchmark_report.pdf (TRACKED); per_sample/ + resources/ gitignored
-├── runs/       per-caller × per-sample outputs + alignments (GITIGNORED)
+├── truth/      normalized truth exported under truth/<dataset>/
+├── reports/    independent combined reports under reports/datasets/<dataset>/
+├── runs/       dataset × caller × sample outputs + alignments (GITIGNORED)
 └── docs/       plans/ + data_provenance.md
 ```
 
@@ -89,33 +91,33 @@ relocate-benchmark/
 1. Edit `config/benchmark.toml` — set dataset paths and which callers are
    enabled (`[callers.<name>].enabled`).
 
-2. Submit the benchmark:
+2. Submit one dataset or the full suite:
 
    ```bash
-   bash pipeline/submit_benchmark.sh
+   bash pipeline/submit_benchmark.sh --dataset mping
+   bash pipeline/submit_benchmark.sh --dataset ricetelib
+   bash pipeline/submit_benchmark.sh --dataset full
    ```
 
-   This exports truth from the panel, submits the SLURM array (one task per
-   caller × sample; currently 2 callers × 9 samples = 18 tasks), and submits a
+   This exports truth per dataset, submits the SLURM array (one task per
+   dataset × caller × sample), and submits a
    dependent **aggregation job** that runs automatically once the array finishes
    — combining the reports and rendering the PDF. No manual step needed.
 
 3. Read the results (written by the aggregation job):
 
    ```
-   reports/correctness.tsv        per caller·coverage·replicate·class·cellular_fraction
-   reports/precision.tsv          per caller·sample overall precision + false-discovery rate
-   reports/head_to_head.tsv       RelocaTE2 vs RelocaTE3 (recall, status accuracy, deltas)
-   reports/resources.tsv          wall time + peak RSS
-   reports/benchmark_report.pdf   multipage figure report
+   reports/datasets/<dataset>/correctness.tsv
+   reports/datasets/<dataset>/precision.tsv
+   reports/datasets/<dataset>/head_to_head.tsv
+   reports/datasets/<dataset>/resources.tsv
+   reports/datasets/<dataset>/benchmark_report.pdf
    ```
 
    To aggregate manually (e.g. after a `--no-aggregate` run):
 
    ```bash
-   python3.12 scoring/combine_reports.py --report-root reports --samples truth/samples.tsv
-   python3.12 scoring/compare_callers.py --correctness reports/correctness.tsv --outdir reports
-   module load R && Rscript scoring/make_report.R reports reports/benchmark_report.pdf
+   sbatch --export=ALL,DATASET_SELECTION=ricetelib pipeline/aggregate.sh
    ```
 
 ## Running a subset (troubleshooting)
@@ -124,8 +126,8 @@ Re-run only specific data groups by filtering on caller, coverage, sample, or
 replicate — the task indices stay stable, so only the matching array tasks run:
 
 ```bash
-bash pipeline/submit_benchmark.sh --caller relocate3            # only RelocaTE3
-bash pipeline/submit_benchmark.sh --coverage 30                 # only 30x samples
+bash pipeline/submit_benchmark.sh --dataset ricetelib --caller relocate2
+bash pipeline/submit_benchmark.sh --dataset full --coverage 30
 bash pipeline/submit_benchmark.sh --sample cov30x_rep1          # one sample, both callers
 bash pipeline/submit_benchmark.sh --caller relocate3 --coverage 5,15   # combine filters
 ```
@@ -149,20 +151,20 @@ benchmark will use.
 
 ## Outputs
 
-- **`reports/correctness.tsv`** — per caller · coverage · replicate · class ·
+- **`reports/datasets/<dataset>/correctness.tsv`** — per caller · coverage · replicate · class ·
   `cellular_fraction`: recall, genotype-status accuracy, exact-TSD accuracy, and
   `class_call_share` (this class's true detections ÷ all of that caller's calls
   — a diagnostic, **not** a precision; see `precision.tsv` for precision).
   Somatic rows break out by cellular fraction (VAF tier).
-- **`reports/precision.tsv`** — per caller × sample: `total_calls`,
+- **`reports/datasets/<dataset>/precision.tsv`** — per caller × sample: `total_calls`,
   `matched_calls`, `overall_precision` (matched ÷ total), and
   `false_discovery_rate`. This is the trustworthy precision metric.
-- **`reports/head_to_head.tsv`** — side-by-side per class · cellular_fraction ·
+- **`reports/datasets/<dataset>/head_to_head.tsv`** — side-by-side per class · cellular_fraction ·
   coverage with per-caller recall + status accuracy and recall deltas. N-caller
   ready.
-- **`reports/resources.tsv`** — runtime and memory per caller × sample, parsed
+- **`reports/datasets/<dataset>/resources.tsv`** — runtime and memory per caller × sample, parsed
   from `/usr/bin/time -v`.
-- **`reports/benchmark_report.pdf`** — multipage figures: recall by class,
+- **`reports/datasets/<dataset>/benchmark_report.pdf`** — multipage figures: recall by class,
   status accuracy, precision + false-positive counts, somatic recall by cellular
   fraction, and compute resources.
 
@@ -175,8 +177,9 @@ root:
 bash pipeline/run_dashboard.sh
 ```
 
-It reads the existing combined TSV reports and provides Overview, Accuracy,
-Somatic, Resources, and Provenance pages with data-driven filters. It never runs
+It reads the dataset manifest and provides Overview, Accuracy, Somatic, TE
+groups, Resources, and Provenance pages with a dataset selector and data-driven
+filters. It never runs
 callers or recalculates authoritative benchmark metrics. To open a copied or
 historical result set:
 
@@ -209,8 +212,9 @@ pixi run --manifest-path env/benchmark/pixi.toml \
   python -m unittest discover -s tests -v
 ```
 
-## Known limitation
+## Multi-dataset design
 
-RelocaTE3 currently supports fixed-length wildcard TSD patterns only. Scoring
-uses `tsd = "..."` (3-bp) while the truth panel contains 4–5 bp TSDs, so
-exact-TSD accuracy is reported with that caveat.
+See
+[`docs/2026-07-28-multi-dataset-benchmark-integration.md`](docs/2026-07-28-multi-dataset-benchmark-integration.md)
+for the output-isolation contract, full reference-TE annotation conversion,
+TE-taxonomy scoring, TSD provenance, validation, and operational cautions.

@@ -103,6 +103,32 @@ class TestCompareCallers(unittest.TestCase):
         self.assertEqual(by_class["homozygous"]["relocate3_detection_recall"], "")
         self.assertEqual(by_class["homozygous"]["relocate2_minus_relocate3_recall"], "")
 
+    def test_te_group_is_part_of_the_pivot_key(self):
+        corr = self.d / "c_te.tsv"
+        header = HEADER + ["te_group", "te_class", "te_order", "te_superfamily"]
+        rows = []
+        for group, recall in (("LINE", "0.4"), ("SINE", "0.8")):
+            for caller in ("relocate2", "relocate3"):
+                row = _row(caller, "homozygous", recall)
+                row.update(
+                    te_group=group,
+                    te_class="Class_I",
+                    te_order=group,
+                    te_superfamily=group,
+                )
+                rows.append(row)
+        with open(corr, "w", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=header, delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows)
+        self.assertEqual(
+            main(["--correctness", str(corr), "--outdir", str(self.d)]), 0
+        )
+        with open(self.d / "head_to_head.tsv") as fh:
+            result = list(csv.DictReader(fh, delimiter="\t"))
+        self.assertEqual(len(result), 2)
+        self.assertEqual({row["te_group"] for row in result}, {"LINE", "SINE"})
+
 
 if __name__ == "__main__":
     unittest.main()

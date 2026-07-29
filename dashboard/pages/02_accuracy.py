@@ -37,6 +37,7 @@ def main() -> None:
     selection = render_filters(bundle)
 
     st.title("Accuracy")
+    st.caption(f"Dataset: {bundle.dataset_label}")
     label = st.selectbox("Metric", tuple(METRICS))
     metric = METRICS[label]
 

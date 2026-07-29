@@ -116,3 +116,52 @@ def somatic_figure(data: pd.DataFrame) -> go.Figure:
     )
     fig.update_yaxes(range=[0, 1], tickformat=".0%")
     return fig
+
+
+def te_group_figure(data: pd.DataFrame, title: str, y_label: str) -> go.Figure:
+    """Coverage curves faceted by curated TE group."""
+    fig = px.line(
+        data,
+        x="coverage",
+        y="value",
+        color="caller",
+        markers=True,
+        facet_col="te_group",
+        facet_col_wrap=3,
+        title=title,
+        labels={
+            "coverage": "Coverage (x)",
+            "value": y_label,
+            "caller": "Caller",
+            "te_group": "TE group",
+        },
+        hover_data=[
+            column
+            for column in ("te_class", "te_order", "te_superfamily")
+            if column in data.columns
+        ],
+    )
+    fig.update_yaxes(range=[0, 1], tickformat=".0%")
+    _use_shared_x_title(fig, "Coverage (x)", y_position=-0.12)
+    return fig
+
+
+def te_group_heatmap(data: pd.DataFrame, title: str) -> go.Figure:
+    """Mean metric across selected coverage values for each caller/group."""
+    pooled = (
+        data.groupby(["caller", "te_group"], as_index=False, observed=True)["value"]
+        .mean()
+    )
+    matrix = pooled.pivot(index="te_group", columns="caller", values="value")
+    fig = px.imshow(
+        matrix,
+        zmin=0,
+        zmax=1,
+        color_continuous_scale="Viridis",
+        text_auto=".0%",
+        aspect="auto",
+        title=title,
+        labels={"x": "Caller", "y": "TE group", "color": "Metric"},
+    )
+    fig.update_coloraxes(colorbar_tickformat=".0%")
+    return fig
