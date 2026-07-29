@@ -42,6 +42,34 @@ def _use_shared_x_title(
     fig.update_layout(margin={"b": bottom_margin})
 
 
+def _use_shared_y_title(
+    fig: go.Figure,
+    title: str,
+    *,
+    x_position: float = -0.07,
+    left_margin: int = 90,
+) -> None:
+    """Remove the repeated per-facet y titles and add one figure-level y title.
+
+    Faceted figures otherwise repeat the y-axis title on every facet row, so with
+    ``facet_col_wrap`` the titles stack and overprint each other. Mirror
+    :func:`_use_shared_x_title`: clear the per-axis titles and draw one rotated
+    title centred on the left edge.
+    """
+    fig.for_each_yaxis(lambda axis: axis.update(title_text=None))
+    fig.add_annotation(
+        text=title,
+        x=x_position,
+        y=0.5,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+        textangle=-90,
+        font={"size": 14},
+    )
+    fig.update_layout(margin={"l": left_margin})
+
+
 def accuracy_figure(data: pd.DataFrame, title: str, y_label: str) -> go.Figure:
     facet = "biological_class" if "biological_class" in data.columns else None
     fig = px.line(
@@ -70,13 +98,21 @@ def accuracy_figure(data: pd.DataFrame, title: str, y_label: str) -> go.Figure:
 
 def caller_comparison_figure(data: pd.DataFrame, title: str, y_label: str) -> go.Figure:
     x = "biological_class" if "biological_class" in data.columns else "coverage"
+    facet = "coverage" if x == "biological_class" else None
+    # Each incoming row is a per-slice recall (one per replicate x TE group x
+    # cellular fraction). Without aggregating, px.bar sums these for each
+    # (caller, x) bar; the summed height then clips against the [0, 1] axis and
+    # reads near 100%. Average to one value per bar so the height is the mean
+    # recall across the active slice.
+    group_cols = [x, "caller"] + ([facet] if facet else [])
+    data = data.groupby(group_cols, as_index=False, observed=True)["value"].mean()
     fig = px.bar(
         data,
         x=x,
         y="value",
         color="caller",
         barmode="group",
-        facet_col="coverage" if x == "biological_class" else None,
+        facet_col=facet,
         title=title,
         labels={x: x.replace("_", " ").title(), "value": y_label, "caller": "Caller"},
     )
@@ -143,6 +179,7 @@ def te_group_figure(data: pd.DataFrame, title: str, y_label: str) -> go.Figure:
     )
     fig.update_yaxes(range=[0, 1], tickformat=".0%")
     _use_shared_x_title(fig, "Coverage (x)", y_position=-0.12)
+    _use_shared_y_title(fig, y_label)
     return fig
 
 
