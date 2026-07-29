@@ -26,7 +26,8 @@ def main() -> None:
 
     st.title("Somatic insertion performance")
     st.caption(
-        "Recall across cellular fractions and expected variant allele frequencies "
+        f"Dataset: {bundle.dataset_label}. Recall across cellular fractions and "
+        "expected variant allele frequencies "
         "using the benchmark's existing truth and detection counts."
     )
     if data.empty:

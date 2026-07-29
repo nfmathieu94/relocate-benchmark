@@ -24,6 +24,7 @@ class ReportSpec:
     numeric: frozenset[str]
     integers: frozenset[str]
     unique_key: tuple[str, ...]
+    optional_key: tuple[str, ...] = ()
     required_metric_suffix: str | None = None
 
 
@@ -78,6 +79,7 @@ REPORT_SPECS: dict[str, ReportSpec] = {
             }
         ),
         unique_key=("caller", "sample", "biological_class", "cellular_fraction"),
+        optional_key=("te_group", "te_class", "te_order", "te_superfamily"),
     ),
     "precision": ReportSpec(
         filename="precision.tsv",
@@ -121,6 +123,7 @@ REPORT_SPECS: dict[str, ReportSpec] = {
         numeric=frozenset({"coverage", "replicate", "cellular_fraction"}),
         integers=frozenset({"coverage", "replicate"}),
         unique_key=("coverage", "replicate", "biological_class", "cellular_fraction"),
+        optional_key=("te_group", "te_class", "te_order", "te_superfamily"),
         required_metric_suffix="_detection_recall",
     ),
     "resources": ReportSpec(
@@ -210,11 +213,14 @@ def validate_report(frame: pd.DataFrame, spec: ReportSpec, path: Path) -> pd.Dat
         raise ReportValidationError(path, problems)
 
     typed = _coerce_numeric(frame, spec, path)
-    duplicates = typed.duplicated(list(spec.unique_key), keep=False)
+    unique_key = spec.unique_key + tuple(
+        field for field in spec.optional_key if field in typed.columns
+    )
+    duplicates = typed.duplicated(list(unique_key), keep=False)
     if duplicates.any():
-        example = typed.loc[duplicates, list(spec.unique_key)].iloc[0].to_dict()
+        example = typed.loc[duplicates, list(unique_key)].iloc[0].to_dict()
         raise ReportValidationError(
             path,
-            [f"duplicate row for expected key {spec.unique_key}: {example}"],
+            [f"duplicate row for expected key {unique_key}: {example}"],
         )
     return typed

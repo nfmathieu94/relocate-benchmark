@@ -74,7 +74,7 @@ mkdir -p "$RAW" "$FQ_DIR" "$BAM_DIR"
 # ---------------------------------------------------------------------------
 # 4. Put relocaTE2.py / bwa / samtools on PATH.
 # ---------------------------------------------------------------------------
-ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${ADAPTER_DIR:=callers/relocate2}"
 # shellcheck source=env.sh
 source "$ADAPTER_DIR/env.sh"
 

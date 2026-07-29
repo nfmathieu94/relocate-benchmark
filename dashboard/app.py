@@ -28,7 +28,8 @@ def main() -> None:
 
     st.title("RelocaTE benchmark dashboard")
     st.caption(
-        "Interactive presentation of already aggregated benchmark reports. "
+        f"Dataset: {bundle.dataset_label}. Interactive presentation of already "
+        "aggregated benchmark reports. "
         "This application does not execute callers or recalculate truth matches."
     )
 

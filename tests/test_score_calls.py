@@ -133,6 +133,50 @@ class TestScore(unittest.TestCase):
         self.assertEqual(by_class["homozygous"]["detected_events"], 1)
         self.assertEqual(len(fps), 0)
 
+    def test_multi_te_truth_is_stratified_by_curated_group(self):
+        truth = self.d / "truth_multi.tsv"
+        calls = self.d / "calls_multi.tsv"
+        _write(
+            truth,
+            [
+                "event_id", "chrom", "position", "te_family", "te_group",
+                "te_class", "te_order", "te_superfamily",
+                "biological_class", "tsd",
+            ],
+            [
+                {
+                    "event_id": "T1", "chrom": "Chr1", "position": 1000,
+                    "te_family": "TE_A", "te_group": "LINE",
+                    "te_class": "Class_I", "te_order": "LINE",
+                    "te_superfamily": "LINE", "biological_class": "homozygous",
+                    "tsd": "AAAAAAA",
+                },
+                {
+                    "event_id": "T2", "chrom": "Chr1", "position": 2000,
+                    "te_family": "TE_B", "te_group": "SINE",
+                    "te_class": "Class_I", "te_order": "SINE",
+                    "te_superfamily": "SINE", "biological_class": "homozygous",
+                    "tsd": "TTTTTTT",
+                },
+            ],
+        )
+        _write(
+            calls,
+            ["chrom", "position", "te_family", "tsd", "strand", "status", "caller", "sample"],
+            [{
+                "chrom": "Chr1", "position": 1001, "te_family": "TE_A#LINE/L1",
+                "tsd": "AAAAAAA", "strand": "+", "status": "homozygous",
+                "caller": "relocate3", "sample": "S1",
+            }],
+        )
+        summary, _, _, _ = score(
+            truth, calls, sample="S1", caller="relocate3", window=10
+        )
+        by_group = {row["te_group"]: row for row in summary}
+        self.assertEqual(set(by_group), {"LINE", "SINE"})
+        self.assertEqual(by_group["LINE"]["detected_events"], 1)
+        self.assertEqual(by_group["SINE"]["detected_events"], 0)
+
     def test_main_writes_reports(self):
         # Truth/calls where every call matches a truth event -> zero false positives,
         # exercising the empty-file branch of _write for false_positive_calls.tsv.

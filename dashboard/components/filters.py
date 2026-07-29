@@ -13,6 +13,10 @@ _WIDGET_KEYS = {
     "cellular_fractions": "filter_cellular_fractions",
     "samples": "filter_samples",
     "replicates": "filter_replicates",
+    "te_groups": "filter_te_groups",
+    "te_classes": "filter_te_classes",
+    "te_orders": "filter_te_orders",
+    "te_superfamilies": "filter_te_superfamilies",
 }
 
 
@@ -49,4 +53,20 @@ def render_filters(bundle: ReportBundle) -> FilterSelection:
                 "Replicate", options["replicates"], default=options["replicates"], key=_WIDGET_KEYS["replicates"]
             ),
         }
+        taxonomy = (
+            ("te_groups", "TE group"),
+            ("te_classes", "TE class"),
+            ("te_orders", "TE order"),
+            ("te_superfamilies", "TE superfamily"),
+        )
+        visible = [(name, label) for name, label in taxonomy if options[name]]
+        if visible:
+            st.subheader("TE taxonomy")
+        for name, label in visible:
+            selected[name] = st.multiselect(
+                label,
+                options[name],
+                default=options[name],
+                key=_WIDGET_KEYS[name],
+            )
     return FilterSelection(**{name: tuple(values) for name, values in selected.items()})

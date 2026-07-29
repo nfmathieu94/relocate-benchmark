@@ -109,6 +109,10 @@ def _combine_correctness(report_root, samples_path, out_path):
         _int_or_inf(r.get("replicate")),
         r.get("biological_class", ""),
         r.get("cellular_fraction", ""),
+        r.get("te_group", ""),
+        r.get("te_class", ""),
+        r.get("te_order", ""),
+        r.get("te_superfamily", ""),
     ))
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -8,7 +8,7 @@
 # digest-pinned BioContainers (see images.txt). Fallback: Phase 1 pinned cluster
 # modules (pinned-modules.txt); then error.
 set -euo pipefail
-_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_here="${ADAPTER_DIR:-callers/relocate2}"
 _img_dir="$_here/images"
 _relocate2_sif="$_img_dir/relocate2.sif"
 _bwa_sif="$_img_dir/bwa.sif"

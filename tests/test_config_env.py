@@ -278,5 +278,90 @@ class TestAlignerVariants(unittest.TestCase):
         )
 
 
+class TestMultipleDatasets(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.panels = {}
+        for name in ("mping", "ricetelib"):
+            panel = root / name
+            panel.mkdir()
+            (panel / "panel_manifest.tsv").write_text(MANIFEST)
+            self.panels[name] = panel
+        self.config = root / "multi.toml"
+        self.config.write_text(
+            f"""
+[benchmark]
+default_dataset = "mping"
+
+[datasets.mping]
+label = "mPing only"
+panel_root = "{self.panels['mping']}"
+reference = "/ref.fa"
+te_library = "/mping.fa"
+repeatmasker = "/rm.out"
+te_name = "mPing"
+
+[datasets.ricetelib]
+label = "riceTElib multi-TE"
+panel_root = "{self.panels['ricetelib']}"
+reference = "/ref.fa"
+te_library = "/rice.fa"
+repeatmasker = "cache/full.out"
+repeatmasker_gff = "/full.gff"
+te_name = "riceTElib"
+
+[run]
+work_root = "runs"
+report_root = "reports"
+truth_root = "truth"
+threads = 8
+
+[scoring]
+match_window = 10
+
+[callers.relocate2]
+enabled = true
+adapter = "callers/relocate2"
+"""
+        )
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_default_and_full_dataset_selection(self):
+        default = config_env.run(["--config", str(self.config), "datasets"])
+        self.assertTrue(default.startswith("mping\tmPing only\t"))
+        full = config_env.run(
+            ["--config", str(self.config), "--dataset", "full", "datasets"]
+        )
+        self.assertEqual(
+            [line.split("\t")[0] for line in full.splitlines()],
+            ["mping", "ricetelib"],
+        )
+
+    def test_tasks_are_dataset_qualified(self):
+        output = config_env.run(
+            ["--config", str(self.config), "--dataset", "full", "tasks"]
+        )
+        rows = [line.split("\t") for line in output.splitlines()]
+        self.assertEqual(len(rows), 4)
+        self.assertEqual([row[0] for row in rows], ["mping", "mping", "ricetelib", "ricetelib"])
+        self.assertEqual(rows[0][1:3], ["relocate2", "s1"])
+
+    def test_dataset_env_has_isolated_roots(self):
+        output = config_env.run(
+            ["--config", str(self.config), "dataset-env", "ricetelib"]
+        )
+        self.assertIn("DATASET_WORK_ROOT='runs/ricetelib'", output)
+        self.assertIn("DATASET_REPORT_ROOT='reports/datasets/ricetelib'", output)
+        self.assertIn("DATASET_TRUTH_ROOT='truth/ricetelib'", output)
+        self.assertIn("REPEATMASKER_GFF='/full.gff'", output)
+        self.assertIn("TE_LIBRARY_SOURCE='/rice.fa'", output)
+        self.assertIn(
+            "TE_LIBRARY='cache/te_libraries/ricetelib/library.fa'", output
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 # Interactive benchmark dashboard
 
-Date/time: 2026-07-17 America/Los_Angeles
+Date/time: 2026-07-28 America/Los_Angeles
 
 ## Purpose
 
@@ -11,8 +11,8 @@ benchmark reports.
 
 ## Inputs
 
-The selected report directory must contain the four combined tables produced by
-the aggregation workflow:
+The report root normally contains `datasets.tsv`, whose rows point to isolated
+dataset report directories. Each selected dataset directory contains:
 
 - `correctness.tsv` — class- and condition-stratified truth/detection counts,
   recall, status accuracy, TSD counts, and class call share.
@@ -45,7 +45,8 @@ The equivalent direct Pixi command is:
 pixi run --manifest-path env/benchmark/pixi.toml dashboard
 ```
 
-Both commands default to `reports/`. Open a copied or historical report set
+Both commands default to `reports/`. A legacy copied directory containing four
+tables directly is still supported. Open one with:
 without moving files:
 
 ```bash
@@ -71,13 +72,16 @@ substantial benchmark analyses still belong in SLURM jobs.
   comparisons.
 - **Somatic performance** — recall by cellular fraction, expected VAF, caller,
   and coverage.
+- **TE groups** — recall, status accuracy, and exact-TSD accuracy by curated TE
+  group, with taxonomy filters when present.
 - **Computational resources** — mean wall time and peak RSS by caller and
   coverage.
 - **Provenance** — dataset/configuration paths, enabled caller settings, report
   timestamps, metric definitions, and known limitations.
 
-Sidebar filters are populated from the loaded reports. Reset them with the
-**Reset filters** button.
+The dataset selector is shown when more than one complete dataset is indexed.
+All pages and filters then operate on only that dataset. Sidebar filters are
+populated from its reports. Reset them with **Reset filters**.
 
 ## Metric interpretation
 
@@ -90,8 +94,9 @@ Sidebar filters are populated from the loaded reports. Reset them with the
 - Resource comparisons are meaningful only for runs collected under the same
   standardized SLURM and software conditions.
 
-RelocaTE3 currently uses a 3-bp wildcard TSD pattern while this truth panel
-contains 4–5 bp TSDs. Exact-TSD results must be interpreted with that caveat.
+RelocaTE3 is configured with `tsd = "UNK"` and infers variable TSD length and
+sequence from junction reads. Exact-TSD results compare that call with each
+event's truth.
 
 ## Troubleshooting
 

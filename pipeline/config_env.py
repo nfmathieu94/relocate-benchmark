@@ -1,36 +1,21 @@
 #!/usr/bin/env python3.12
-"""Config-to-shell bridge for the relocate-benchmark pipeline.
+"""Config-to-shell bridge for the multi-dataset benchmark pipeline.
 
-Reads config/benchmark.toml (via lib.config.load_config) and emits
-shell-consumable output for the SLURM runner. All emitted assignments are
-single-quoted and safe to `eval`.
-
-Subcommands:
-  globals              Print global env assignments (REFERENCE, THREADS, ...).
-  callers              Print each ENABLED caller name, one per line, sorted.
-  caller-env <name>    Print a caller's extra env assignments (RT3_*/RT2_*).
-  tasks                Print one tab-separated task line per (caller x sample).
-  count                Print the integer number of tasks.
-  indices              Print 0-based canonical task indices matching filters.
-
-Requires python3.12 (tomllib via lib.config).
+Canonical task order is dataset, caller, then panel-manifest row. Dataset
+selection accepts one key, comma-separated keys, or ``full``. Legacy configs
+with a single ``[dataset]`` table remain readable as dataset ``default``.
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import re
 import sys
 from pathlib import Path
 
-# Make the repo root importable so `from lib.config import load_config` works
-# regardless of the current working directory.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.config import load_config
 
-# Map each ADAPTER (basename of the caller's `adapter` path) to the config keys
-# it consumes and their contract env-var names. Keying by adapter (not caller
-# name) lets many callers -- e.g. the RelocaTE3 aligner variants -- share one
-# adapter and env mapping. Unknown adapters yield no caller-specific env.
 ADAPTER_ENV_MAP: dict[str, dict[str, str]] = {
     "relocate3": {
         "repo": "RT3_REPO",
@@ -46,25 +31,11 @@ ADAPTER_ENV_MAP: dict[str, dict[str, str]] = {
 }
 
 
-def _adapter_dir(tbl: dict) -> str:
-    """The caller's adapter directory (config `adapter`, default callers/<name>)."""
-    return tbl.get("adapter", "")
-
-
-def _adapter_key(tbl: dict) -> str:
-    """Basename of the adapter path, used to look up ADAPTER_ENV_MAP."""
-    return Path(tbl.get("adapter", "")).name
+def _sq(value) -> str:
+    return "'" + str(value).replace("'", "'\\''") + "'"
 
 
 def pretty_caller(key: str) -> str:
-    """Render a caller key as its display label.
-
-    Uses the config `label` when set; otherwise derives it from the key:
-    ``relocate3-<te>-<genome>`` -> ``RelocaTE3-<te>/<genome>``; ``relocate2`` ->
-    ``RelocaTE2``.
-    """
-    import re
-
     m = re.match(r"^relocate3-([^-]+)-(.+)$", key)
     if m:
         return f"RelocaTE3-{m.group(1)}/{m.group(2)}"
@@ -73,15 +44,55 @@ def pretty_caller(key: str) -> str:
     return key
 
 
-def _sq(value) -> str:
-    """Single-quote a value for safe shell `eval`."""
-    return "'" + str(value).replace("'", "'\\''") + "'"
+def _dataset_tables(cfg: dict) -> dict[str, dict]:
+    if "datasets" in cfg:
+        return cfg["datasets"]
+    if "dataset" in cfg:
+        return {"default": cfg["dataset"]}
+    raise KeyError("config must contain [datasets.<key>] or legacy [dataset]")
+
+
+def _enabled_datasets(cfg: dict) -> list[str]:
+    return sorted(
+        key
+        for key, table in _dataset_tables(cfg).items()
+        if table.get("enabled", True) is True
+    )
+
+
+def _default_dataset(cfg: dict) -> str:
+    enabled = _enabled_datasets(cfg)
+    if not enabled:
+        raise ValueError("no enabled benchmark datasets")
+    default = cfg.get("benchmark", {}).get("default_dataset", enabled[0])
+    if default not in enabled:
+        raise ValueError(
+            f"default dataset {default!r} is not enabled; available: {', '.join(enabled)}"
+        )
+    return default
+
+
+def _select_datasets(cfg: dict, selection: str | None) -> list[str]:
+    enabled = _enabled_datasets(cfg)
+    if selection is None:
+        return [_default_dataset(cfg)]
+    if selection.lower() in {"full", "all"}:
+        return enabled
+    requested = [item.strip() for item in selection.split(",") if item.strip()]
+    unknown = sorted(set(requested) - set(enabled))
+    if unknown:
+        raise ValueError(
+            f"unknown or disabled dataset(s): {', '.join(unknown)}; "
+            f"available: {', '.join(enabled)}, full"
+        )
+    return requested
 
 
 def _enabled_callers(cfg: dict) -> list[str]:
-    callers = cfg.get("callers", {})
     return sorted(
-        name for name, tbl in callers.items() if tbl.get("enabled") is True
+        name
+        for name, table in cfg.get("callers", {}).items()
+        if table.get("enabled") is True
     )
 
 
@@ -89,133 +100,173 @@ def _manifest_rows(panel_root: Path) -> list[dict]:
     manifest = panel_root / "panel_manifest.tsv"
     if not manifest.is_file():
         raise FileNotFoundError(f"panel manifest missing: {manifest}")
-    with open(manifest, newline="") as fh:
-        return list(csv.DictReader(fh, delimiter="\t"))
+    with manifest.open(newline="") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
 
 
 def _globals(cfg: dict) -> str:
-    ds = cfg["dataset"]
+    run = cfg["run"]
     lines = [
+        f"WORK_ROOT={_sq(run['work_root'])}",
+        f"REPORT_ROOT={_sq(run.get('report_root', 'reports'))}",
+        f"TRUTH_ROOT={_sq(run.get('truth_root', 'truth'))}",
+        f"THREADS={_sq(run['threads'])}",
+        f"MATCH_WINDOW={_sq(cfg['scoring']['match_window'])}",
+        f"DEFAULT_DATASET={_sq(_default_dataset(cfg))}",
+    ]
+    # Preserve the old one-table shell contract for external scripts that still
+    # use a legacy [dataset] config. Multi-dataset jobs use dataset-env.
+    if "datasets" not in cfg:
+        ds = cfg["dataset"]
+        lines.extend(
+            (
+                f"REFERENCE={_sq(ds['reference'])}",
+                f"TE_LIBRARY={_sq(ds['te_library'])}",
+                f"REPEATMASKER={_sq(ds['repeatmasker'])}",
+                f"TE_NAME={_sq(ds['te_name'])}",
+                f"PANEL_ROOT={_sq(ds['panel_root'])}",
+            )
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _dataset_env(cfg: dict, name: str) -> str:
+    tables = _dataset_tables(cfg)
+    if name not in tables:
+        raise ValueError(f"unknown dataset: {name}")
+    ds = tables[name]
+    run = cfg["run"]
+    work_root = run["work_root"]
+    report_root = run.get("report_root", "reports")
+    truth_root = run.get("truth_root", "truth")
+    staged_te_library = str(Path("cache") / "te_libraries" / name / "library.fa")
+    lines = [
+        f"DATASET={_sq(name)}",
+        f"DATASET_LABEL={_sq(ds.get('label', name))}",
         f"REFERENCE={_sq(ds['reference'])}",
-        f"TE_LIBRARY={_sq(ds['te_library'])}",
+        f"TE_LIBRARY_SOURCE={_sq(ds['te_library'])}",
+        f"TE_LIBRARY={_sq(staged_te_library)}",
         f"REPEATMASKER={_sq(ds['repeatmasker'])}",
+        f"REPEATMASKER_GFF={_sq(ds.get('repeatmasker_gff', ''))}",
         f"TE_NAME={_sq(ds['te_name'])}",
         f"PANEL_ROOT={_sq(ds['panel_root'])}",
-        f"WORK_ROOT={_sq(cfg['run']['work_root'])}",
-        f"THREADS={_sq(cfg['run']['threads'])}",
-        f"MATCH_WINDOW={_sq(cfg['scoring']['match_window'])}",
+        f"DATASET_WORK_ROOT={_sq(Path(work_root) / name)}",
+        f"DATASET_REPORT_ROOT={_sq(Path(report_root) / 'datasets' / name)}",
+        f"DATASET_TRUTH_ROOT={_sq(Path(truth_root) / name)}",
     ]
     return "\n".join(lines) + "\n"
 
 
+def _datasets(cfg: dict, selection: str | None) -> str:
+    tables = _dataset_tables(cfg)
+    rows = [
+        "\t".join((key, str(tables[key].get("label", key)), str(tables[key]["panel_root"])))
+        for key in _select_datasets(cfg, selection)
+    ]
+    return "".join(row + "\n" for row in rows)
+
+
 def _callers(cfg: dict) -> str:
-    names = _enabled_callers(cfg)
-    return "".join(f"{n}\n" for n in names)
+    return "".join(f"{name}\n" for name in _enabled_callers(cfg))
+
+
+def _adapter_key(table: dict) -> str:
+    return Path(table.get("adapter", "")).name
 
 
 def _caller_env(cfg: dict, name: str) -> str:
-    tbl = cfg.get("callers", {}).get(name, {})
-    mapping = ADAPTER_ENV_MAP.get(_adapter_key(tbl))
-    if not mapping or not tbl:
+    table = cfg.get("callers", {}).get(name, {})
+    mapping = ADAPTER_ENV_MAP.get(_adapter_key(table))
+    if not mapping:
         return ""
-    lines = [f"{env}={_sq(tbl[key])}" for key, env in mapping.items() if key in tbl]
+    lines = [
+        f"{env}={_sq(table[key])}"
+        for key, env in mapping.items()
+        if key in table
+    ]
     return ("\n".join(lines) + "\n") if lines else ""
 
 
 def _adapter(cfg: dict, name: str) -> str:
-    """Print the adapter dir for a caller (default callers/<name>)."""
-    tbl = cfg.get("callers", {}).get(name, {})
-    return (_adapter_dir(tbl) or f"callers/{name}") + "\n"
+    table = cfg.get("callers", {}).get(name, {})
+    return (table.get("adapter") or f"callers/{name}") + "\n"
 
 
 def _labels(cfg: dict) -> str:
-    """Print ``<key>\\t<label>`` for each enabled caller."""
     callers = cfg.get("callers", {})
-    out = []
-    for name in _enabled_callers(cfg):
-        label = callers.get(name, {}).get("label") or pretty_caller(name)
-        out.append(f"{name}\t{label}")
-    return "\n".join(out) + "\n" if out else ""
+    rows = [
+        f"{name}\t{callers.get(name, {}).get('label') or pretty_caller(name)}"
+        for name in _enabled_callers(cfg)
+    ]
+    return "\n".join(rows) + "\n" if rows else ""
 
 
-def _task_records(cfg: dict) -> list[dict]:
-    """Return canonical task records (STABLE order: callers sorted x manifest).
-
-    Each record has keys: caller, sample, coverage, replicate, r1, r2.
-    This is the single source of truth for `tasks`, `count`, and `indices`.
-    """
-    panel_root = Path(cfg["dataset"]["panel_root"])
-    rows = _manifest_rows(panel_root)
+def _task_records(cfg: dict, dataset_selection: str | None = None) -> list[dict]:
     records = []
-    # Deterministic: outer loop = enabled callers sorted, inner = manifest order.
-    for caller in _enabled_callers(cfg):
-        for row in rows:
-            records.append(
-                {
-                    "caller": caller,
-                    "sample": row["sample"],
-                    "coverage": row["coverage"],
-                    "replicate": row["replicate"],
-                    "r1": str(panel_root / row["r1"]),
-                    "r2": str(panel_root / row["r2"]),
-                }
-            )
+    tables = _dataset_tables(cfg)
+    for dataset in _select_datasets(cfg, dataset_selection):
+        panel_root = Path(tables[dataset]["panel_root"])
+        rows = _manifest_rows(panel_root)
+        for caller in _enabled_callers(cfg):
+            for row in rows:
+                records.append(
+                    {
+                        "dataset": dataset,
+                        "caller": caller,
+                        "sample": row["sample"],
+                        "coverage": row["coverage"],
+                        "replicate": row["replicate"],
+                        "r1": str(panel_root / row["r1"]),
+                        "r2": str(panel_root / row["r2"]),
+                    }
+                )
     return records
 
 
-def _tasks(cfg: dict) -> str:
-    out = [
-        "\t".join(
-            [
-                rec["caller"],
-                rec["sample"],
-                rec["coverage"],
-                rec["replicate"],
-                rec["r1"],
-                rec["r2"],
-            ]
-        )
-        for rec in _task_records(cfg)
-    ]
-    return "".join(line + "\n" for line in out)
+def _tasks(cfg: dict, selection: str | None) -> str:
+    fields = (
+        ("dataset", "caller", "sample", "coverage", "replicate", "r1", "r2")
+        if "datasets" in cfg
+        else ("caller", "sample", "coverage", "replicate", "r1", "r2")
+    )
+    return "".join(
+        "\t".join(record[field] for field in fields) + "\n"
+        for record in _task_records(cfg, selection)
+    )
 
 
-def _parse_filter(value) -> set[str] | None:
-    """Split a comma-separated filter value into a set; None = no constraint."""
+def _parse_filter(value: str | None) -> set[str] | None:
     if value is None:
         return None
-    return {item for item in value.split(",")}
+    return {item.strip() for item in value.split(",") if item.strip()}
 
 
-def _indices(cfg: dict, filters: dict) -> str:
-    """Print comma-separated 0-based task indices matching ALL given filters.
-
-    filters maps record-key -> comma-separated string (or None). An index is
-    included iff, for every provided filter, the task's value is in the filter's
-    comma list. With no filters, all indices are returned.
-    """
-    wanted = {key: _parse_filter(val) for key, val in filters.items()}
-    matched = []
-    for idx, rec in enumerate(_task_records(cfg)):
+def _indices(cfg: dict, dataset_selection: str | None, filters: dict) -> str:
+    wanted = {key: _parse_filter(value) for key, value in filters.items()}
+    matched = [
+        index
+        for index, record in enumerate(_task_records(cfg, dataset_selection))
         if all(
-            allowed is None or rec[key] in allowed
+            allowed is None or record[key] in allowed
             for key, allowed in wanted.items()
-        ):
-            matched.append(idx)
-    return ",".join(str(i) for i in matched) + "\n"
-
-
-def _count(cfg: dict) -> str:
-    return f"{len(_task_records(cfg))}\n"
+        )
+    ]
+    return ",".join(str(index) for index in matched) + "\n"
 
 
 def run(argv=None) -> str:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--config", default="config/benchmark.toml", type=Path)
-    ap.add_argument(
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", default="config/benchmark.toml", type=Path)
+    parser.add_argument(
+        "--dataset",
+        help="dataset key, comma-separated keys, or full (default: config default)",
+    )
+    parser.add_argument(
         "mode",
-        choices=[
+        choices=(
             "globals",
+            "datasets",
+            "dataset-env",
             "callers",
             "caller-env",
             "adapter",
@@ -223,39 +274,44 @@ def run(argv=None) -> str:
             "tasks",
             "count",
             "indices",
-        ],
+        ),
     )
-    ap.add_argument("name", nargs="?", help="caller name (for caller-env/adapter)")
-    # Filters for `indices` (each a comma-separated list; omitted = no constraint).
-    ap.add_argument("--caller", help="filter indices by caller (indices mode)")
-    ap.add_argument("--coverage", help="filter indices by coverage (indices mode)")
-    ap.add_argument("--replicate", help="filter indices by replicate (indices mode)")
-    ap.add_argument("--sample", help="filter indices by sample (indices mode)")
-    args = ap.parse_args(argv)
-
+    parser.add_argument("name", nargs="?", help="dataset or caller name")
+    parser.add_argument("--caller")
+    parser.add_argument("--coverage")
+    parser.add_argument("--replicate")
+    parser.add_argument("--sample")
+    args = parser.parse_args(argv)
     cfg = load_config(args.config)
 
     if args.mode == "globals":
         return _globals(cfg)
+    if args.mode == "datasets":
+        return _datasets(cfg, args.dataset)
+    if args.mode == "dataset-env":
+        if not args.name:
+            parser.error("dataset-env requires a dataset name")
+        return _dataset_env(cfg, args.name)
     if args.mode == "callers":
         return _callers(cfg)
     if args.mode == "caller-env":
         if not args.name:
-            ap.error("caller-env requires a caller name")
+            parser.error("caller-env requires a caller name")
         return _caller_env(cfg, args.name)
     if args.mode == "adapter":
         if not args.name:
-            ap.error("adapter requires a caller name")
+            parser.error("adapter requires a caller name")
         return _adapter(cfg, args.name)
     if args.mode == "labels":
         return _labels(cfg)
     if args.mode == "tasks":
-        return _tasks(cfg)
+        return _tasks(cfg, args.dataset)
     if args.mode == "count":
-        return _count(cfg)
+        return f"{len(_task_records(cfg, args.dataset))}\n"
     if args.mode == "indices":
         return _indices(
             cfg,
+            args.dataset,
             {
                 "caller": args.caller,
                 "coverage": args.coverage,
@@ -263,11 +319,15 @@ def run(argv=None) -> str:
                 "sample": args.sample,
             },
         )
-    ap.error(f"unknown mode: {args.mode}")  # unreachable (choices-guarded)
+    raise AssertionError("unreachable")
 
 
 def main(argv=None) -> int:
-    sys.stdout.write(run(argv))
+    try:
+        sys.stdout.write(run(argv))
+    except (KeyError, ValueError, FileNotFoundError) as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
     return 0
 
 
