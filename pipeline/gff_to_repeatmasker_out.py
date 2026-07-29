@@ -57,7 +57,15 @@ def convert(source: Path, destination: Path) -> int:
                 rm_strand = "+" if strand == "+" else "C"
                 # RelocaTE only consumes query, boundaries, strand, and repeat
                 # identity. Zero placeholders preserve the standard 15-column
-                # layout required by the legacy parser.
+                # layout required by the legacy parser. RepeatMasker orders the
+                # repeat-coordinate columns by strand: '+' is "begin end (left)";
+                # reverse ('C') is "(left) end begin". Emitting the forward order
+                # for reverse records makes the legacy parser read '(0)' where it
+                # expects the integer begin (ValueError: invalid literal '(0)').
+                if rm_strand == "C":
+                    repeat_cols = ("(0)", str(repeat_end), str(repeat_start))
+                else:
+                    repeat_cols = (str(repeat_start), str(repeat_end), "(0)")
                 fields = (
                     score if score != "." else "0",
                     attrs.get("PercDiv", "0"),
@@ -70,9 +78,7 @@ def convert(source: Path, destination: Path) -> int:
                     rm_strand,
                     repeat,
                     attrs.get("Class", "Unknown"),
-                    str(repeat_start),
-                    str(repeat_end),
-                    "(0)",
+                    *repeat_cols,
                     attrs.get("ID", str(count + 1)),
                 )
                 out.write(" ".join(fields) + "\n")
