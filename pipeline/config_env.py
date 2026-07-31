@@ -8,13 +8,13 @@ with a single ``[dataset]`` table remain readable as dataset ``default``.
 from __future__ import annotations
 
 import argparse
-import csv
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.config import load_config
+from lib.panel import panel_path, read_panel_manifest
 
 ADAPTER_ENV_MAP: dict[str, dict[str, str]] = {
     "relocate3": {
@@ -97,11 +97,7 @@ def _enabled_callers(cfg: dict) -> list[str]:
 
 
 def _manifest_rows(panel_root: Path) -> list[dict]:
-    manifest = panel_root / "panel_manifest.tsv"
-    if not manifest.is_file():
-        raise FileNotFoundError(f"panel manifest missing: {manifest}")
-    with manifest.open(newline="") as handle:
-        return list(csv.DictReader(handle, delimiter="\t"))
+    return read_panel_manifest(panel_root)
 
 
 def _globals(cfg: dict) -> str:
@@ -216,8 +212,9 @@ def _task_records(cfg: dict, dataset_selection: str | None = None) -> list[dict]
                         "sample": row["sample"],
                         "coverage": row["coverage"],
                         "replicate": row["replicate"],
-                        "r1": str(panel_root / row["r1"]),
-                        "r2": str(panel_root / row["r2"]),
+                        "divergence": row.get("divergence_percent", ""),
+                        "r1": str(panel_path(panel_root, row["r1"])),
+                        "r2": str(panel_path(panel_root, row["r2"])),
                     }
                 )
     return records
@@ -279,6 +276,7 @@ def run(argv=None) -> str:
     parser.add_argument("name", nargs="?", help="dataset or caller name")
     parser.add_argument("--caller")
     parser.add_argument("--coverage")
+    parser.add_argument("--divergence")
     parser.add_argument("--replicate")
     parser.add_argument("--sample")
     args = parser.parse_args(argv)
@@ -315,6 +313,7 @@ def run(argv=None) -> str:
             {
                 "caller": args.caller,
                 "coverage": args.coverage,
+                "divergence": args.divergence,
                 "replicate": args.replicate,
                 "sample": args.sample,
             },

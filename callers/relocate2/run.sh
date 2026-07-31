@@ -80,9 +80,19 @@ source "$ADAPTER_DIR/env.sh"
 
 # ---------------------------------------------------------------------------
 # 5. Stage reads under RelocaTE2's mate-id naming convention (_R1 / _R2).
+#    Preserve a gzip suffix: RelocaTE2 supports *.fastq.gz, but hiding gzip data
+#    behind a *.fastq symlink can make suffix-based readers treat it as text.
 # ---------------------------------------------------------------------------
-ln -sf "$(readlink -f "$R1")" "$FQ_DIR/${SAMPLE}_R1.fastq"
-ln -sf "$(readlink -f "$R2")" "$FQ_DIR/${SAMPLE}_R2.fastq"
+if [[ "$R1" == *.gz && "$R2" == *.gz ]]; then
+  STAGED_FASTQ_SUFFIX=".fastq.gz"
+elif [[ "$R1" != *.gz && "$R2" != *.gz ]]; then
+  STAGED_FASTQ_SUFFIX=".fastq"
+else
+  echo "ERROR: R1/R2 compression differs; both mates must be gzip or plain FASTQ" >&2
+  exit 1
+fi
+ln -sf "$(readlink -f "$R1")" "$FQ_DIR/${SAMPLE}_R1${STAGED_FASTQ_SUFFIX}"
+ln -sf "$(readlink -f "$R2")" "$FQ_DIR/${SAMPLE}_R2${STAGED_FASTQ_SUFFIX}"
 
 # ---------------------------------------------------------------------------
 # 6. Build the reads-to-genome BAM (atomic: temp then rename) and index it.

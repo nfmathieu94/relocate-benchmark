@@ -9,6 +9,7 @@ from dashboard.data.transforms import FilterSelection, available_filters
 _WIDGET_KEYS = {
     "callers": "filter_callers",
     "coverages": "filter_coverages",
+    "divergences": "filter_divergences",
     "classes": "filter_classes",
     "cellular_fractions": "filter_cellular_fractions",
     "samples": "filter_samples",
@@ -53,6 +54,13 @@ def render_filters(bundle: ReportBundle) -> FilterSelection:
                 "Replicate", options["replicates"], default=options["replicates"], key=_WIDGET_KEYS["replicates"]
             ),
         }
+        if options["divergences"]:
+            selected["divergences"] = st.multiselect(
+                "TE divergence (%)",
+                options["divergences"],
+                default=options["divergences"],
+                key=_WIDGET_KEYS["divergences"],
+            )
         taxonomy = (
             ("te_groups", "TE group"),
             ("te_classes", "TE class"),

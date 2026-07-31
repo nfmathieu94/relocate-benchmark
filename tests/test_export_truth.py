@@ -67,6 +67,43 @@ class TestExportTruth(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             export_truth.main(["--panel-root", str(empty), "--outdir", str(self.root / "out2")])
 
+    def test_row_specific_truth_and_derived_sample(self):
+        panel = self.root / "divergence"
+        scenario = panel / "div005_rep01"
+        scenario.mkdir(parents=True)
+        _write(
+            scenario / "truth_events.tsv",
+            ["event_id", "chrom", "position", "te_family", "biological_class",
+             "cellular_fraction", "expected_vaf", "strand", "tsd"],
+            [{"event_id": "E1_div005_rep01", "chrom": "Chr1", "position": "100",
+              "te_family": "TE1", "biological_class": "homozygous",
+              "cellular_fraction": "1", "expected_vaf": "1", "strand": "+",
+              "tsd": "TTA"}],
+        )
+        _write(
+            panel / "panel_manifest.tsv",
+            ["dataset_id", "divergence_percent", "divergence_replicate",
+             "coverage", "truth_tsv", "r1", "r2"],
+            [{"dataset_id": "div005_rep01", "divergence_percent": "5",
+              "divergence_replicate": "1", "coverage": "15",
+              "truth_tsv": "div005_rep01/truth_events.tsv",
+              "r1": "reads/R1.fastq.gz", "r2": "reads/R2.fastq.gz"}],
+        )
+        outdir = self.root / "divergence_truth"
+        self.assertEqual(
+            export_truth.main(
+                ["--panel-root", str(panel), "--outdir", str(outdir)]
+            ),
+            0,
+        )
+        with (outdir / "samples.tsv").open() as handle:
+            sample = next(csv.DictReader(handle, delimiter="\t"))
+        self.assertEqual(sample["sample"], "div005_rep01_cov15x")
+        self.assertEqual(sample["replicate"], "1")
+        exported = outdir / "per_sample" / "div005_rep01_cov15x.tsv"
+        self.assertTrue(exported.is_file())
+        self.assertIn("E1_div005_rep01", exported.read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

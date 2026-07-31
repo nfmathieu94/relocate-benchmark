@@ -13,6 +13,7 @@ from .loaders import ReportBundle, pretty_caller
 class FilterSelection:
     callers: tuple[Any, ...] | None = None
     coverages: tuple[Any, ...] | None = None
+    divergences: tuple[Any, ...] | None = None
     classes: tuple[Any, ...] | None = None
     cellular_fractions: tuple[Any, ...] | None = None
     samples: tuple[Any, ...] | None = None
@@ -26,6 +27,7 @@ class FilterSelection:
 FILTER_COLUMNS = {
     "callers": "caller",
     "coverages": "coverage",
+    "divergences": "divergence_percent",
     "classes": "biological_class",
     "cellular_fractions": "cellular_fraction",
     "samples": "sample",
@@ -166,6 +168,11 @@ def head_to_head_long(head_to_head: pd.DataFrame) -> pd.DataFrame:
     id_columns = [
         "coverage",
         "replicate",
+    ] + [
+        column
+        for column in ("dataset_id", "divergence_percent", "divergence_replicate")
+        if column in head_to_head.columns
+    ] + [
         "biological_class",
         "cellular_fraction",
     ] + [

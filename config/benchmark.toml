@@ -27,6 +27,18 @@ repeatmasker     = "cache/reference_annotations/MSU_r7.full.repeatmasker.out"
 repeatmasker_gff = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa.RepeatMasker.out.gff"
 te_name          = "riceTElib"
 
+[datasets.ricetelib_divergence]
+enabled          = true
+label            = "riceTElib TE divergence"
+panel_root       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_div_benchmark"
+reference        = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+# Callers receive canonical representatives, never the inserted-variant audit
+# FASTAs stored inside each divergence scenario.
+te_library       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_div_benchmark/canonical_te_library.fa"
+repeatmasker     = "cache/reference_annotations/MSU_r7.full.repeatmasker.out"
+repeatmasker_gff = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa.RepeatMasker.out.gff"
+te_name          = "riceTElib"
+
 [run]
 work_root  = "runs"     # inside repo, gitignored
 report_root = "reports"

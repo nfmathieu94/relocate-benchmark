@@ -79,7 +79,7 @@ relocate-benchmark/
 ├── callers/    per-caller adapters: relocate2/, relocate3/ {env.sh, run.sh, normalize.py}
 ├── scoring/    export_truth, score_calls, combine_reports, compare_callers, parse_time_v, make_report.R
 ├── pipeline/   submit_benchmark.sh, run_benchmark_array.sh, aggregate.sh, update_relocate3.sh, config_env.py
-├── lib/        config.py (stdlib TOML + ${section.key} interpolation), calls.py (schema)
+├── lib/        config.py (TOML), panel.py (manifest normalization), calls.py (schema)
 ├── truth/      normalized truth exported under truth/<dataset>/
 ├── reports/    independent combined reports under reports/datasets/<dataset>/
 ├── runs/       dataset × caller × sample outputs + alignments (GITIGNORED)
@@ -96,6 +96,7 @@ relocate-benchmark/
    ```bash
    bash pipeline/submit_benchmark.sh --dataset mping
    bash pipeline/submit_benchmark.sh --dataset ricetelib
+   bash pipeline/submit_benchmark.sh --dataset ricetelib_divergence
    bash pipeline/submit_benchmark.sh --dataset full
    ```
 
@@ -122,13 +123,15 @@ relocate-benchmark/
 
 ## Running a subset (troubleshooting)
 
-Re-run only specific data groups by filtering on caller, coverage, sample, or
-replicate — the task indices stay stable, so only the matching array tasks run:
+Re-run only specific data groups by filtering on caller, coverage, divergence,
+sample, or replicate—the task indices stay stable, so only matching array tasks
+run:
 
 ```bash
 bash pipeline/submit_benchmark.sh --dataset ricetelib --caller relocate2
+bash pipeline/submit_benchmark.sh --dataset ricetelib_divergence --divergence 0,5,20
 bash pipeline/submit_benchmark.sh --dataset full --coverage 30
-bash pipeline/submit_benchmark.sh --sample cov30x_rep1          # one sample, both callers
+bash pipeline/submit_benchmark.sh --sample cov30x_rep1          # one sample, matching callers
 bash pipeline/submit_benchmark.sh --caller relocate3 --coverage 5,15   # combine filters
 ```
 

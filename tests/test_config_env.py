@@ -363,5 +363,95 @@ adapter = "callers/relocate2"
         )
 
 
+class TestDivergenceDatasetManifest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        root = Path(self.temp.name)
+        self.panel = root / "divergence"
+        self.panel.mkdir()
+        (self.panel / "panel_manifest.tsv").write_text(
+            "dataset_id\tdivergence_percent\tdivergence_replicate\tcoverage\t"
+            "truth_tsv\tr1\tr2\n"
+            "div005_rep02\t5\t2\t15\tdiv005_rep02/truth_events.tsv\t"
+            "div005_rep02/reads/cov15x_rep2/R1.fastq.gz\t"
+            "div005_rep02/reads/cov15x_rep2/R2.fastq.gz\n"
+        )
+        self.config = root / "benchmark.toml"
+        self.config.write_text(
+            f"""
+[benchmark]
+default_dataset = "ricetelib_divergence"
+
+[datasets.ricetelib_divergence]
+panel_root = "{self.panel}"
+reference = "/ref.fa"
+te_library = "/canonical.fa"
+repeatmasker = "/rm.out"
+te_name = "riceTElib"
+
+[run]
+work_root = "runs"
+threads = 8
+
+[scoring]
+match_window = 10
+
+[callers.relocate3]
+enabled = true
+adapter = "callers/relocate3"
+"""
+        )
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_task_derives_unique_sample_and_replicate(self):
+        output = config_env.run(
+            [
+                "--config",
+                str(self.config),
+                "--dataset",
+                "ricetelib_divergence",
+                "tasks",
+            ]
+        )
+        row = output.rstrip().split("\t")
+        self.assertEqual(row[0:5], [
+            "ricetelib_divergence",
+            "relocate3",
+            "div005_rep02_cov15x",
+            "15",
+            "2",
+        ])
+        self.assertTrue(row[5].endswith("R1.fastq.gz"))
+        self.assertTrue(row[6].endswith("R2.fastq.gz"))
+
+    def test_divergence_filter(self):
+        matching = config_env.run(
+            [
+                "--config",
+                str(self.config),
+                "--dataset",
+                "ricetelib_divergence",
+                "indices",
+                "--divergence",
+                "5",
+            ]
+        )
+        missing = config_env.run(
+            [
+                "--config",
+                str(self.config),
+                "--dataset",
+                "ricetelib_divergence",
+                "indices",
+                "--divergence",
+                "10",
+            ]
+        )
+        self.assertEqual(matching.strip(), "0")
+        self.assertEqual(missing.strip(), "")
+
+
 if __name__ == "__main__":
     unittest.main()

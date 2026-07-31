@@ -129,6 +129,30 @@ class TestCompareCallers(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual({row["te_group"] for row in result}, {"LINE", "SINE"})
 
+    def test_divergence_is_part_of_the_pivot_key(self):
+        corr = self.d / "c_divergence.tsv"
+        header = HEADER + ["divergence_percent", "divergence_replicate"]
+        rows = []
+        for divergence, recall in (("0", "0.9"), ("20", "0.3")):
+            for caller in ("relocate2", "relocate3"):
+                row = _row(caller, "homozygous", recall)
+                row["divergence_percent"] = divergence
+                row["divergence_replicate"] = "1"
+                rows.append(row)
+        with corr.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=header, delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows)
+        self.assertEqual(
+            main(["--correctness", str(corr), "--outdir", str(self.d)]), 0
+        )
+        with (self.d / "head_to_head.tsv").open() as handle:
+            result = list(csv.DictReader(handle, delimiter="\t"))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(
+            {row["divergence_percent"] for row in result}, {"0", "20"}
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

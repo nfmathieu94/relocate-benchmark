@@ -55,6 +55,8 @@ REPORT_SPECS: dict[str, ReportSpec] = {
             {
                 "coverage",
                 "replicate",
+                "divergence_percent",
+                "divergence_replicate",
                 "cellular_fraction",
                 "expected_vaf",
                 "truth_events",
@@ -71,6 +73,7 @@ REPORT_SPECS: dict[str, ReportSpec] = {
             {
                 "coverage",
                 "replicate",
+                "divergence_replicate",
                 "truth_events",
                 "detected_events",
                 "status_correct_events",
@@ -79,7 +82,15 @@ REPORT_SPECS: dict[str, ReportSpec] = {
             }
         ),
         unique_key=("caller", "sample", "biological_class", "cellular_fraction"),
-        optional_key=("te_group", "te_class", "te_order", "te_superfamily"),
+        optional_key=(
+            "dataset_id",
+            "divergence_percent",
+            "divergence_replicate",
+            "te_group",
+            "te_class",
+            "te_order",
+            "te_superfamily",
+        ),
     ),
     "precision": ReportSpec(
         filename="precision.tsv",
@@ -97,6 +108,8 @@ REPORT_SPECS: dict[str, ReportSpec] = {
             {
                 "coverage",
                 "replicate",
+                "divergence_percent",
+                "divergence_replicate",
                 "total_calls",
                 "matched_calls",
                 "false_positive_calls",
@@ -108,6 +121,7 @@ REPORT_SPECS: dict[str, ReportSpec] = {
             {
                 "coverage",
                 "replicate",
+                "divergence_replicate",
                 "total_calls",
                 "matched_calls",
                 "false_positive_calls",
@@ -120,10 +134,26 @@ REPORT_SPECS: dict[str, ReportSpec] = {
         required=frozenset(
             {"coverage", "replicate", "biological_class", "cellular_fraction"}
         ),
-        numeric=frozenset({"coverage", "replicate", "cellular_fraction"}),
-        integers=frozenset({"coverage", "replicate"}),
+        numeric=frozenset(
+            {
+                "coverage",
+                "replicate",
+                "divergence_percent",
+                "divergence_replicate",
+                "cellular_fraction",
+            }
+        ),
+        integers=frozenset({"coverage", "replicate", "divergence_replicate"}),
         unique_key=("coverage", "replicate", "biological_class", "cellular_fraction"),
-        optional_key=("te_group", "te_class", "te_order", "te_superfamily"),
+        optional_key=(
+            "dataset_id",
+            "divergence_percent",
+            "divergence_replicate",
+            "te_group",
+            "te_class",
+            "te_order",
+            "te_superfamily",
+        ),
         required_metric_suffix="_detection_recall",
     ),
     "resources": ReportSpec(
@@ -136,6 +166,8 @@ REPORT_SPECS: dict[str, ReportSpec] = {
             {
                 "coverage",
                 "replicate",
+                "divergence_percent",
+                "divergence_replicate",
                 "wall_seconds",
                 "max_rss_kb",
                 "user_seconds",
@@ -143,7 +175,9 @@ REPORT_SPECS: dict[str, ReportSpec] = {
                 "percent_cpu",
             }
         ),
-        integers=frozenset({"coverage", "replicate", "max_rss_kb"}),
+        integers=frozenset(
+            {"coverage", "replicate", "divergence_replicate", "max_rss_kb"}
+        ),
         unique_key=("caller", "sample"),
     ),
 }
