@@ -41,6 +41,15 @@ class TestDashboardTransforms(unittest.TestCase):
         result = apply_filters(self.bundle.correctness, FilterSelection(callers=()))
         self.assertTrue(result.empty)
 
+    def test_optional_divergence_filter(self):
+        frame = self.bundle.correctness.copy()
+        frame["divergence_percent"] = [0 if i % 2 == 0 else 5 for i in range(len(frame))]
+        result = apply_filters(
+            frame, FilterSelection(divergences=(5,))
+        )
+        self.assertFalse(result.empty)
+        self.assertEqual(set(result["divergence_percent"]), {5})
+
     def test_precision_comes_from_precision_table(self):
         data = precision_summary(self.bundle.precision, "overall_precision")
         value = data.query("caller == 'caller_a' and coverage == 5")["value"].iloc[0]

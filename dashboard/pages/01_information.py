@@ -40,7 +40,7 @@ and `bwa aln` to place the trimmed flanks on the genome.
 """
     )
 
-    st.header("The two datasets")
+    st.header("The three datasets")
     st.markdown(
         "Pick a dataset from the **sidebar selector**. Only one dataset is shown at "
         "a time, so metrics from different datasets are never mixed."
@@ -76,9 +76,24 @@ Class I (retro) = 200 events, Class II (DNA) = 300. Only this dataset has the
 TE-group metadata used on the **TE groups** page.
 """
         )
+    with st.expander(
+        "riceTElib divergence panel — evolutionary distance", expanded=True
+    ):
+        st.markdown(
+            """
+The same 500-event riceTElib design is repeated at **0%, 2%, 5%, 10%, 15%,
+and 20% nucleotide divergence** from the canonical TE representatives supplied
+to each caller. Every level has three mutation/read replicates and 5×, 15×,
+and 30× coverage. Only TE-body substitutions vary; insertion sites, TSDs,
+strands, biological states, TE lengths, and coverage remain fixed.
+
+Use the **TE divergence (%)** sidebar filter to isolate levels. The inserted
+variant FASTAs are audit truth and are never supplied to callers.
+"""
+        )
     st.markdown(
         """
-**Both panels share the same sample design:**
+**The mPing and canonical riceTElib panels share this sample design:**
 
 - **9 samples** = 3 coverages (**5×, 15×, 30×**) × 3 replicates.
 - **5 biological states per sample, 100 events each:**
@@ -86,6 +101,9 @@ TE-group metadata used on the **TE groups** page.
   - **heterozygous** (one haplotype; expected VAF 0.5),
   - **somatic** at three cellular fractions — VAF **0.2, 0.1, 0.05** — modeling
     insertions present in only a subset of cells (few supporting reads).
+
+The divergence panel expands the riceTElib design to **54 samples**: 6
+divergence levels × 3 replicates × 3 coverages.
 """
     )
 

@@ -68,6 +68,22 @@ class TestDashboardLoaders(unittest.TestCase):
             with self.assertRaisesRegex(ReportValidationError, "duplicate row"):
                 load_reports(report_dir)
 
+    def test_head_to_head_divergence_is_an_optional_condition_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report_dir = self._copy_fixture(Path(tmp))
+            path = report_dir / "head_to_head.tsv"
+            frame = pd.read_csv(path, sep="\t")
+            frame["divergence_percent"] = 0
+            additional = frame.iloc[[0]].copy()
+            additional["divergence_percent"] = 5
+            pd.concat([frame, additional]).to_csv(path, sep="\t", index=False)
+            bundle = load_reports(report_dir)
+            self.assertTrue(
+                pd.api.types.is_float_dtype(
+                    bundle.head_to_head["divergence_percent"]
+                )
+            )
+
     def test_dataset_manifest_loads_isolated_bundles(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "reports"

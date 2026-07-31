@@ -17,6 +17,7 @@ CONFIG="${CONFIG:-config/benchmark.toml}"
 DATASET_SELECTION=""
 FILTER_CALLER=""
 FILTER_COVERAGE=""
+FILTER_DIVERGENCE=""
 FILTER_SAMPLE=""
 FILTER_REPLICATE=""
 NO_AGGREGATE=0
@@ -27,6 +28,7 @@ while [[ $# -gt 0 ]]; do
     --dataset)    DATASET_SELECTION="$2"; shift 2 ;;
     --caller)     FILTER_CALLER="$2";     shift 2 ;;
     --coverage)   FILTER_COVERAGE="$2";   shift 2 ;;
+    --divergence) FILTER_DIVERGENCE="$2"; shift 2 ;;
     --sample)     FILTER_SAMPLE="$2";     shift 2 ;;
     --replicate)  FILTER_REPLICATE="$2";  shift 2 ;;
     --no-aggregate) NO_AGGREGATE=1; shift ;;
@@ -40,9 +42,10 @@ print_help() {
 Usage: bash pipeline/submit_benchmark.sh [options]
 
 Options:
-  --dataset <name>     mping, ricetelib, or full (default: config setting)
+  --dataset <name>     mping, ricetelib, ricetelib_divergence, or full
   --caller <list>      Caller key(s), comma-separated
   --coverage <list>    Coverage value(s), comma-separated
+  --divergence <list>  TE divergence percentage(s), comma-separated
   --sample <list>      Sample name(s), comma-separated
   --replicate <list>   Replicate value(s), comma-separated
   --no-aggregate       Do not submit the dependent aggregation job
@@ -50,6 +53,7 @@ Options:
 
 Examples:
   bash pipeline/submit_benchmark.sh --dataset ricetelib
+  bash pipeline/submit_benchmark.sh --dataset ricetelib_divergence --divergence 0,5,20
   bash pipeline/submit_benchmark.sh --dataset full --coverage 15,30
 EOF
 }
@@ -82,8 +86,7 @@ echo "[$(date)] submit_benchmark: config=$CONFIG datasets=$DATASET_SELECTION"
 while IFS=$'\t' read -r dataset label panel_root; do
   [[ -n "$dataset" ]] || continue
   eval "$("${PY[@]}" pipeline/config_env.py --config "$CONFIG" dataset-env "$dataset")"
-  for input in "$PANEL_ROOT/panel_manifest.tsv" "$PANEL_ROOT/truth_events.tsv" \
-               "$REFERENCE" "$TE_LIBRARY_SOURCE"; do
+  for input in "$PANEL_ROOT/panel_manifest.tsv" "$REFERENCE" "$TE_LIBRARY_SOURCE"; do
     [[ -s "$input" ]] || { echo "ERROR: required input missing or empty: $input" >&2; exit 1; }
   done
   for reference_index in \
@@ -125,19 +128,24 @@ while IFS=$'\t' read -r dataset label panel_root; do
     echo "ERROR: reference-TE annotation missing or empty: $REPEATMASKER" >&2
     exit 1
   }
-  if [[ -f "$DATASET_TRUTH_ROOT/.complete" ]]; then
+  if [[ -f "$DATASET_TRUTH_ROOT/.complete" &&
+        -d "$DATASET_TRUTH_ROOT/per_sample" ]]; then
     echo "[$(date)] truth already exported: $dataset"
   else
     echo "[$(date)] exporting truth: $dataset ($label)"
+    truth_args=()
+    [[ ! -e "$DATASET_TRUTH_ROOT" ]] || truth_args+=(--force)
     "${PY[@]}" scoring/export_truth.py \
       --panel-root "$PANEL_ROOT" \
-      --outdir "$DATASET_TRUTH_ROOT"
+      --outdir "$DATASET_TRUTH_ROOT" \
+      "${truth_args[@]}"
   fi
 done <<< "$DATASET_ROWS"
 
 IDX_ARGS=()
 [[ -n "$FILTER_CALLER" ]]    && IDX_ARGS+=(--caller "$FILTER_CALLER")
 [[ -n "$FILTER_COVERAGE" ]]  && IDX_ARGS+=(--coverage "$FILTER_COVERAGE")
+[[ -n "$FILTER_DIVERGENCE" ]] && IDX_ARGS+=(--divergence "$FILTER_DIVERGENCE")
 [[ -n "$FILTER_SAMPLE" ]]    && IDX_ARGS+=(--sample "$FILTER_SAMPLE")
 [[ -n "$FILTER_REPLICATE" ]] && IDX_ARGS+=(--replicate "$FILTER_REPLICATE")
 
@@ -157,6 +165,31 @@ else
 fi
 echo "[$(date)] task array: $ARRAY"
 mkdir -p logs
+
+# Fail before sbatch if a manifest points to absent inputs or a .gz path is not
+# actually gzip data. This reads only the two-byte magic, not each large FASTQ.
+declare -A VALIDATED_READS=()
+while IFS=$'\t' read -r _dataset _caller _sample _coverage _replicate r1 r2; do
+  for read_path in "$r1" "$r2"; do
+    [[ -z "${VALIDATED_READS[$read_path]+x}" ]] || continue
+    [[ -s "$read_path" ]] || {
+      echo "ERROR: FASTQ input missing or empty: $read_path" >&2
+      exit 1
+    }
+    if [[ "$read_path" == *.gz ]]; then
+      magic="$(od -An -tx1 -N2 "$read_path" | tr -d '[:space:]')"
+      [[ "$magic" == "1f8b" ]] || {
+        echo "ERROR: .gz FASTQ does not have gzip magic bytes: $read_path" >&2
+        exit 1
+      }
+    fi
+    VALIDATED_READS["$read_path"]=1
+  done
+done < <(
+  "${PY[@]}" pipeline/config_env.py --config "$CONFIG" \
+    --dataset "$DATASET_SELECTION" tasks
+)
+echo "[$(date)] validated ${#VALIDATED_READS[@]} distinct FASTQ inputs"
 
 _csv_has() {
   local needle="$1" csv="$2" item

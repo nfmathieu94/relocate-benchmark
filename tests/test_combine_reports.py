@@ -56,8 +56,12 @@ class TestCombineReports(unittest.TestCase):
                PREC_HEADER, [_prec_row("relocate3")])
         self.samples = self.root / "samples.tsv"
         _write(self.samples,
-               ["sample", "coverage", "replicate", "r1", "r2", "control_r1", "control_r2"],
+               ["sample", "coverage", "replicate", "dataset_id",
+                "divergence_percent", "divergence_replicate",
+                "r1", "r2", "control_r1", "control_r2"],
                [{"sample": "cov5x_rep1", "coverage": "5", "replicate": "1",
+                 "dataset_id": "div005_rep01", "divergence_percent": "5",
+                 "divergence_replicate": "1",
                  "r1": "a", "r2": "b", "control_r1": "c", "control_r2": "d"}])
 
     def test_union_and_join(self):
@@ -72,12 +76,14 @@ class TestCombineReports(unittest.TestCase):
         for r in rows:
             self.assertEqual(r["coverage"], "5")
             self.assertEqual(r["replicate"], "1")
+            self.assertEqual(r["divergence_percent"], "5")
         # coverage/replicate inserted right after sample
         header = out.read_text().splitlines()[0].split("\t")
         self.assertEqual(header[:4], ["caller", "sample", "coverage", "replicate"])
         # new cellular_fraction/expected_vaf columns flow through
         self.assertIn("cellular_fraction", header)
         self.assertIn("expected_vaf", header)
+        self.assertIn("divergence_percent", header)
 
     def test_precision_combined_with_coverage(self):
         rc = main(["--report-root", str(self.report), "--samples", str(self.samples)])
@@ -139,6 +145,7 @@ class TestCombineReports(unittest.TestCase):
             rows = list(csv.DictReader(fh, delimiter="\t"))
         self.assertEqual(len(rows), 2)
         self.assertIn("max_rss_kb", rows[0].keys())
+        self.assertTrue(all(row["divergence_percent"] == "5" for row in rows))
 
 
 if __name__ == "__main__":

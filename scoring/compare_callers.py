@@ -22,6 +22,13 @@ _METRICS = ("detection_recall", "status_accuracy_given_detected")
 _BASE_GROUP_FIELDS = (
     "coverage",
     "replicate",
+)
+_OPTIONAL_CONDITION_FIELDS = (
+    "dataset_id",
+    "divergence_percent",
+    "divergence_replicate",
+)
+_BIOLOGICAL_GROUP_FIELDS = (
     "biological_class",
     "cellular_fraction",
 )
@@ -54,7 +61,14 @@ def compare(rows):
     optional = tuple(
         field for field in _OPTIONAL_GROUP_FIELDS if any(field in row for row in rows)
     )
-    group_fields = _BASE_GROUP_FIELDS + optional
+    conditions = tuple(
+        field
+        for field in _OPTIONAL_CONDITION_FIELDS
+        if any(row.get(field, "") != "" for row in rows)
+    )
+    group_fields = (
+        _BASE_GROUP_FIELDS + conditions + _BIOLOGICAL_GROUP_FIELDS + optional
+    )
     groups = OrderedDict()
     for r in rows:
         key = tuple(r.get(field, "") for field in group_fields)
@@ -78,6 +92,7 @@ def compare(rows):
     out_rows.sort(key=lambda o: (
         _int_or_inf(o["coverage"]),
         _int_or_inf(o["replicate"]),
+        *(_int_or_inf(o.get(field)) for field in conditions),
         o["biological_class"],
         o["cellular_fraction"],
         *(o.get(field, "") for field in optional),

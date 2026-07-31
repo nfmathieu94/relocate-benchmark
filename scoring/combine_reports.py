@@ -25,15 +25,41 @@ def _read_tsv(path):
         return reader.fieldnames or [], list(reader)
 
 
+SAMPLE_META_FIELDS = (
+    "coverage",
+    "replicate",
+    "dataset_id",
+    "divergence_percent",
+    "divergence_replicate",
+)
+
+
 def _load_sample_meta(samples_path):
-    """Return {sample: (coverage, replicate)} from a panel manifest."""
+    """Return selected experimental metadata keyed by normalized sample."""
     meta = {}
     if samples_path is None or not Path(samples_path).is_file():
         return meta
     _, rows = _read_tsv(samples_path)
     for row in rows:
-        meta[row["sample"]] = (row.get("coverage", ""), row.get("replicate", ""))
+        meta[row["sample"]] = {
+            field: row.get(field, "") for field in SAMPLE_META_FIELDS
+        }
     return meta
+
+
+def _join_sample_meta(rows, out_fields, meta):
+    """Attach manifest conditions and return the expanded output field order."""
+    present = [
+        field
+        for field in SAMPLE_META_FIELDS
+        if any(values.get(field, "") != "" for values in meta.values())
+    ]
+    fields = [field for field in out_fields if field not in present]
+    idx = fields.index("sample") + 1 if "sample" in fields else len(fields)
+    fields[idx:idx] = present
+    for row in rows:
+        row.update(meta.get(row.get("sample", ""), {}))
+    return fields
 
 
 def _int_or_inf(value):
@@ -88,23 +114,11 @@ def _combine_correctness(report_root, samples_path, out_path):
         out_path.write_text("")
         return
 
-    # Insert coverage/replicate right after the 'sample' column.
-    out_fields = list(base_fields)
-    if "sample" in out_fields:
-        idx = out_fields.index("sample") + 1
-    else:
-        idx = len(out_fields)
-    for extra in ("replicate", "coverage"):
-        if extra not in out_fields:
-            out_fields.insert(idx, extra)
-
-    for row in rows:
-        cov, rep = meta.get(row.get("sample", ""), ("", ""))
-        row["coverage"] = cov
-        row["replicate"] = rep
+    out_fields = _join_sample_meta(rows, list(base_fields), meta)
 
     rows.sort(key=lambda r: (
         r.get("caller", ""),
+        _int_or_inf(r.get("divergence_percent")),
         _int_or_inf(r.get("coverage")),
         _int_or_inf(r.get("replicate")),
         r.get("biological_class", ""),
@@ -144,23 +158,11 @@ def _combine_precision(report_root, samples_path, out_path):
         out_path.write_text("")
         return
 
-    # Insert coverage/replicate right after the 'sample' column.
-    out_fields = list(base_fields)
-    if "sample" in out_fields:
-        idx = out_fields.index("sample") + 1
-    else:
-        idx = len(out_fields)
-    for extra in ("replicate", "coverage"):
-        if extra not in out_fields:
-            out_fields.insert(idx, extra)
-
-    for row in rows:
-        cov, rep = meta.get(row.get("sample", ""), ("", ""))
-        row["coverage"] = cov
-        row["replicate"] = rep
+    out_fields = _join_sample_meta(rows, list(base_fields), meta)
 
     rows.sort(key=lambda r: (
         r.get("caller", ""),
+        _int_or_inf(r.get("divergence_percent")),
         _int_or_inf(r.get("coverage")),
         _int_or_inf(r.get("replicate")),
     ))
@@ -172,7 +174,8 @@ def _combine_precision(report_root, samples_path, out_path):
         writer.writerows(rows)
 
 
-def _combine_resources(report_root, out_path):
+def _combine_resources(report_root, samples_path, out_path):
+    meta = _load_sample_meta(samples_path)
     paths = sorted(glob.glob(str(report_root / "resources" / "*" / "*.tsv")))
     rows = []
     fields = []
@@ -187,6 +190,7 @@ def _combine_resources(report_root, out_path):
                 fields.append(f)
         rows.extend(file_rows)
 
+    fields = _join_sample_meta(rows, fields, meta)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if not rows:
         print(f"WARNING: no resource rows found under {report_root}/resources", file=sys.stderr)
@@ -219,7 +223,7 @@ def main(argv=None) -> int:
 
     _combine_correctness(args.report_root, args.samples, out_corr)
     _combine_precision(args.report_root, args.samples, out_prec)
-    _combine_resources(args.report_root, out_res)
+    _combine_resources(args.report_root, args.samples, out_res)
     return 0
 
 

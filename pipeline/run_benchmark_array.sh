@@ -44,6 +44,13 @@ echo "  R1        : $R1"
 echo "  R2        : $R2"
 echo "  threads   : $THREADS"
 
+SAMPLE_TRUTH="$DATASET_TRUTH_ROOT/per_sample/${SAMPLE}.tsv"
+if [[ ! -s "$SAMPLE_TRUTH" ]]; then
+  echo "ERROR: exported sample truth missing or empty: $SAMPLE_TRUTH" >&2
+  exit 1
+fi
+echo "  truth     : $SAMPLE_TRUTH"
+
 OUTDIR="$DATASET_WORK_ROOT/$CALLER/$SAMPLE"
 REPORT_DIR="$DATASET_REPORT_ROOT/per_sample/$CALLER/$SAMPLE"
 RES_DIR="$DATASET_REPORT_ROOT/resources/$CALLER"
@@ -75,7 +82,7 @@ echo "[$(date)] normalizing calls"
 
 echo "[$(date)] scoring calls"
 "$PY" scoring/score_calls.py \
-  --truth "$DATASET_TRUTH_ROOT/truth.tsv" \
+  --truth "$SAMPLE_TRUTH" \
   --calls "$OUTDIR/calls.normalized.tsv" \
   --sample "$SAMPLE" \
   --caller "$CALLER" \
