@@ -1,5 +1,8 @@
+import csv
 import importlib.util
 import os
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -38,6 +41,58 @@ class TestDashboardUI(unittest.TestCase):
                 if has_filters:
                     self.assertEqual(len(app.sidebar.multiselect), 6)
                     self.assertEqual(len(app.sidebar.button), 1)
+
+    def test_switching_dataset_does_not_leak_stale_sample_filter(self):
+        # Regression: two datasets with disjoint sample names. The sidebar
+        # filter widgets are keyed, so switching the dataset selector used to
+        # carry the first dataset's sample selection into the second. None of
+        # those samples exist in the second dataset, so the Sample filter
+        # collapsed to empty and `isin([])` zeroed every row, rendering
+        # "No accuracy rows match the active filters." for a fully populated
+        # dataset.
+        from streamlit.testing.v1 import AppTest
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "reports"
+            (root / "datasets").mkdir(parents=True)
+            shutil.copytree(FIXTURE_DIR, root / "datasets" / "alpha")
+            shutil.copytree(FIXTURE_DIR, root / "datasets" / "beta")
+            # Make beta's samples disjoint from alpha's by prefixing them.
+            for name in ("correctness.tsv", "precision.tsv", "resources.tsv"):
+                path = root / "datasets" / "beta" / name
+                with path.open(newline="") as handle:
+                    reader = csv.DictReader(handle, delimiter="\t")
+                    fields = reader.fieldnames
+                    rows = list(reader)
+                for row in rows:
+                    row["sample"] = f"beta_{row['sample']}"
+                with path.open("w", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t")
+                    writer.writeheader()
+                    writer.writerows(rows)
+            (root / "datasets.tsv").write_text(
+                "dataset\tlabel\treport_dir\n"
+                "alpha\tAlpha panel\tdatasets/alpha\n"
+                "beta\tBeta panel\tdatasets/beta\n"
+            )
+
+            app = AppTest.from_file("dashboard/pages/02_accuracy.py", default_timeout=30)
+            with patch.dict(os.environ, {"RELOCATE_REPORT_DIR": str(root)}):
+                app.run()
+                app.sidebar.selectbox[0].set_value("Beta panel").run()
+
+            self.assertEqual(list(app.exception), [])
+            sample_widget = [m for m in app.sidebar.multiselect if m.label == "Sample"]
+            self.assertTrue(sample_widget, "Sample filter widget missing")
+            self.assertNotEqual(
+                sample_widget[0].value,
+                [],
+                "Sample filter leaked to empty after switching datasets",
+            )
+            self.assertNotIn(
+                "No accuracy rows match the active filters.",
+                [message.value for message in app.info],
+            )
 
 
 if __name__ == "__main__":
