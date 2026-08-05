@@ -21,37 +21,50 @@ _WIDGET_KEYS = {
 }
 
 
-def _reset_filters() -> None:
-    for key in _WIDGET_KEYS.values():
+def _reset_filters(keys: list[str]) -> None:
+    for key in keys:
         st.session_state.pop(key, None)
 
 
 def render_filters(bundle: ReportBundle) -> FilterSelection:
     options = available_filters(bundle)
+    # Scope every widget key by dataset so switching the dataset selector starts
+    # from that dataset's own defaults. With one shared key per filter, a keyed
+    # widget retains the previous dataset's selection; when the datasets have
+    # disjoint values (e.g. sample names) the retained selection intersects to
+    # empty and `isin([])` silently zeroes every row.
+    keys = {
+        name: f"{base}__{bundle.dataset_key}" for name, base in _WIDGET_KEYS.items()
+    }
     with st.sidebar:
         st.header("Filters")
-        st.button("Reset filters", on_click=_reset_filters, width="stretch")
+        st.button(
+            "Reset filters",
+            on_click=_reset_filters,
+            args=(list(keys.values()),),
+            width="stretch",
+        )
         selected = {
             "callers": st.multiselect(
-                "Caller", options["callers"], default=options["callers"], key=_WIDGET_KEYS["callers"]
+                "Caller", options["callers"], default=options["callers"], key=keys["callers"]
             ),
             "coverages": st.multiselect(
-                "Coverage (x)", options["coverages"], default=options["coverages"], key=_WIDGET_KEYS["coverages"]
+                "Coverage (x)", options["coverages"], default=options["coverages"], key=keys["coverages"]
             ),
             "classes": st.multiselect(
-                "Insertion class", options["classes"], default=options["classes"], key=_WIDGET_KEYS["classes"]
+                "Insertion class", options["classes"], default=options["classes"], key=keys["classes"]
             ),
             "cellular_fractions": st.multiselect(
                 "Cellular fraction",
                 options["cellular_fractions"],
                 default=options["cellular_fractions"],
-                key=_WIDGET_KEYS["cellular_fractions"],
+                key=keys["cellular_fractions"],
             ),
             "samples": st.multiselect(
-                "Sample", options["samples"], default=options["samples"], key=_WIDGET_KEYS["samples"]
+                "Sample", options["samples"], default=options["samples"], key=keys["samples"]
             ),
             "replicates": st.multiselect(
-                "Replicate", options["replicates"], default=options["replicates"], key=_WIDGET_KEYS["replicates"]
+                "Replicate", options["replicates"], default=options["replicates"], key=keys["replicates"]
             ),
         }
         if options["divergences"]:
@@ -59,7 +72,7 @@ def render_filters(bundle: ReportBundle) -> FilterSelection:
                 "TE divergence (%)",
                 options["divergences"],
                 default=options["divergences"],
-                key=_WIDGET_KEYS["divergences"],
+                key=keys["divergences"],
             )
         taxonomy = (
             ("te_groups", "TE group"),
@@ -75,6 +88,6 @@ def render_filters(bundle: ReportBundle) -> FilterSelection:
                 label,
                 options[name],
                 default=options[name],
-                key=_WIDGET_KEYS[name],
+                key=keys[name],
             )
     return FilterSelection(**{name: tuple(values) for name, values in selected.items()})
