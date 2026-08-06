@@ -20,9 +20,11 @@ pybedtools = "*"
 # on PATH to enable the relocate3-blat-* variants.
 
 [pypi-dependencies]
-# Frozen RelocaTE3: pinned to stajichlab/main at the bwaaln genome backend
-# (2026-07-27, commit d4b5597 -- bwa aln/samse/sampe genome stage for the
-# relocate3-blat-bwaaln R2-parity variant; includes support-dominant pairing,
-# --require-both-junctions, BLAT backend, bwa mate-suffix, align-genome
-# mate-anchor, cross-device-move fixes). HTTPS URL so pixi can clone without SSH.
-RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "d4b55974dc4fba22c70e56bc53babb6669e51105" }
+# Frozen RelocaTE3: pinned to stajichlab/main at the BLAT RelocaTE2-parity fix
+# (2026-08-05, commit 50f939e, PR #40 -- BLAT now runs with RelocaTE2's
+# -minScore=10 -tileSize=7 instead of BLAT's insensitive defaults 30/11, which
+# was the blat-bwaaln recall gap; also adds per-stage aligner option passthrough
+# and the CLI --te-opts/--genome-opts flags for parameter sweeps).
+# Supersedes d4b5597 (bwaaln genome backend), whose content it contains.
+# HTTPS URL so pixi can clone without SSH.
+RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "50f939e8d8c5599628bbb7b33533917bf283ec2c" }
