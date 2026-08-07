@@ -2,7 +2,14 @@
 #SBATCH -p epyc
 #SBATCH --mem=64gb
 #SBATCH --cpus-per-task=8
-#SBATCH --time=24:00:00
+#SBATCH --time=96:00:00
+# 96h, not 24h: the relocate3 blat-* variants run one monolithic single-threaded
+# BLAT over the whole read set, and that stage is ~99% of wall time. Measured on
+# riceTElib relocate3-blat-bwaaln: 5x = 8h44m, and BLAT scales linearly with reads
+# (5x/15x/30x FASTQs are 1:3:6), so 15x ~= 26h and 30x ~= 52h -- both overran the
+# old 24h cap (array 27262453, 2026-08-06). The epyc partition allows 30 days.
+# Follow-up to cut this back down: parallel BLAT (pblat) or RelocaTE2-style
+# chunked BLAT; see docs/2026-08-07-ricetelib-parity-run.md.
 #SBATCH -o logs/benchmark.%A_%a.log
 #
 # One array task = one (dataset, caller, sample) tuple. Submit only through
