@@ -79,11 +79,27 @@ if [[ "$APPLY" -ne 1 ]]; then
 fi
 
 # Refuse to delete anything a live job is still writing to, so this can't be run
-# out from under a running array.
-if squeue -u "$USER" -h -o '%T' 2>/dev/null | grep -q RUNNING; then
+# out from under a running array. Scope the check to jobs launched from THIS repo
+# (squeue %Z is the job's WorkDir, which for benchmark tasks is the repo root) --
+# checking for any RUNNING job at all produces false positives from unrelated
+# work on the cluster. Paths are resolved because the repo is reachable through
+# both /bigdata/stajichlab/... and the /rhome/nmath020/bigdata symlink.
+REPO_REAL="$(readlink -f "$BASE_DIR")"
+LIVE=0
+while IFS='|' read -r jobid state workdir; do
+  [[ "$state" == "RUNNING" ]] || continue
+  [[ -n "$workdir" ]] || continue
+  if [[ "$(readlink -f "$workdir" 2>/dev/null)" == "$REPO_REAL" ]]; then
+    echo "  live job in this repo: $jobid" >&2
+    LIVE=$((LIVE + 1))
+  fi
+done < <(squeue -u "$USER" -h -o '%i|%T|%Z' 2>/dev/null)
+
+if [[ "$LIVE" -gt 0 ]]; then
   echo
-  echo "ERROR: you still have RUNNING jobs. Deleting run dirs now risks removing" >&2
-  echo "       output from a live task. Wait for them to finish, then re-run." >&2
+  echo "ERROR: $LIVE RUNNING job(s) were launched from this repo. Deleting run" >&2
+  echo "       dirs now risks removing output from a live task. Wait for them to" >&2
+  echo "       finish (or scancel them), then re-run." >&2
   exit 1
 fi
 
