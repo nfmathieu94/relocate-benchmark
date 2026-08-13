@@ -67,7 +67,12 @@ export DATASET SAMPLE R1 R2 OUTDIR THREADS
 export REFERENCE TE_LIBRARY REPEATMASKER TE_NAME
 
 eval "$("$PY" pipeline/config_env.py --config "$CONFIG" caller-env "$CALLER")"
+# Allowlist of caller-env variables to export. A caller key added to
+# ADAPTER_ENV_MAP in config_env.py must ALSO be listed here, or it is silently
+# dropped and the adapter falls back to its default -- which is how the
+# `-strict` variant first ran without its own flag.
 for variable in RT3_REPO TSD_PATTERN RT3_TE_ALIGNER RT3_GENOME_ALIGNER \
+                RT3_REQUIRE_BOTH_JUNCTIONS \
                 RT2_ALIGNER RT2_SIZE RT2_MISMATCH; do
   if [[ -n "${!variable+x}" ]]; then
     export "${variable?}"

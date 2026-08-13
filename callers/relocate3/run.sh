@@ -40,6 +40,22 @@ RT3_MISMATCH="${RT3_MISMATCH:-2}"
 RT3_MIN_MATCH="${RT3_MIN_MATCH:-10}"
 RT3_MIN_TRIMMED="${RT3_MIN_TRIMMED:-10}"
 RT3_MIN_MAPQ="${RT3_MIN_MAPQ:-1}"
+# Junction policy. RelocaTE2 keeps a site on `left >= 1 OR right >= 1`
+# (relocaTE_insertionFinder.py:365), and RelocaTE3's own default matches that.
+# This adapter used to pass --require-both-junctions unconditionally, which made
+# RelocaTE3 strictly stricter than the tool it is being compared against and cost
+# it the one-sided calls RelocaTE2 reports -- disproportionately heterozygous and
+# somatic sites, where only one junction is sampled. Default off for a
+# like-for-like comparison; set to 1 for the high-precision variant.
+RT3_REQUIRE_BOTH_JUNCTIONS="${RT3_REQUIRE_BOTH_JUNCTIONS:-0}"
+# Build the flag explicitly: "${VAR:+...}" would expand for the string "0" too,
+# which is precisely the case that must NOT pass the flag.
+BOTH_JUNCTION_ARGS=()
+case "${RT3_REQUIRE_BOTH_JUNCTIONS,,}" in
+  1|true|yes|on) BOTH_JUNCTION_ARGS=(--require-both-junctions) ;;
+  0|false|no|off|"") : ;;
+  *) echo "ERROR: RT3_REQUIRE_BOTH_JUNCTIONS must be 0/1 (got '$RT3_REQUIRE_BOTH_JUNCTIONS')" >&2; exit 1 ;;
+esac
 
 for f in "$R1" "$R2" "$REFERENCE" "$TE_LIBRARY" "$REPEATMASKER"; do
   if [[ ! -f "$f" ]]; then
@@ -108,6 +124,7 @@ echo "  match/trim  : ${RT3_MIN_MATCH}/${RT3_MIN_TRIMMED}"
 echo "  te_name/TSD : ${TE_NAME}/${TSD_PATTERN}"
 echo "  target      : $TARGET"
 echo "  min-mapq    : $RT3_MIN_MAPQ"
+echo "  both-junc   : $RT3_REQUIRE_BOTH_JUNCTIONS"
 
 # Reference inputs are external and read-only to this benchmark. Substantial
 # indexing also does not belong inside every array task.
@@ -175,7 +192,7 @@ relocaTE3 find-insertions \
   --reference-ins "$REPEATMASKER" \
   --mismatch "$RT3_MISMATCH" \
   --min-mapq "$RT3_MIN_MAPQ" \
-  --require-both-junctions
+  "${BOTH_JUNCTION_ARGS[@]}"
 
 if [[ ! -s "$NONREF_TXT" ]]; then
   echo "ERROR: expected non-reference insertion table not produced: $NONREF_TXT" >&2
