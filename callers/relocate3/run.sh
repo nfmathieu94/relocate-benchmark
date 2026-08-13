@@ -50,10 +50,13 @@ RT3_MIN_MAPQ="${RT3_MIN_MAPQ:-1}"
 RT3_REQUIRE_BOTH_JUNCTIONS="${RT3_REQUIRE_BOTH_JUNCTIONS:-0}"
 # Build the flag explicitly: "${VAR:+...}" would expand for the string "0" too,
 # which is precisely the case that must NOT pass the flag.
+# Always pass the policy explicitly. RelocaTE3's own default is now ON, so
+# passing nothing would silently make the permissive variant strict and the two
+# benchmark variants indistinguishable.
 BOTH_JUNCTION_ARGS=()
 case "${RT3_REQUIRE_BOTH_JUNCTIONS,,}" in
   1|true|yes|on) BOTH_JUNCTION_ARGS=(--require-both-junctions) ;;
-  0|false|no|off|"") : ;;
+  0|false|no|off|"") BOTH_JUNCTION_ARGS=(--no-require-both-junctions) ;;
   *) echo "ERROR: RT3_REQUIRE_BOTH_JUNCTIONS must be 0/1 (got '$RT3_REQUIRE_BOTH_JUNCTIONS')" >&2; exit 1 ;;
 esac
 
