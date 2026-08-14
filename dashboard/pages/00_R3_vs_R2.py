@@ -57,7 +57,7 @@ def _headline(summary: pd.DataFrame, focus: str) -> None:
 
 
 def main() -> None:
-    configure_page("Overview")
+    configure_page("RelocaTE3 vs RelocaTE2")
     suite = load_suite()
     summary = cross_dataset_summary(suite)
 
