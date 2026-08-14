@@ -3,13 +3,15 @@
 #SBATCH --mem=64gb
 #SBATCH --cpus-per-task=8
 #SBATCH --time=96:00:00
-# 96h, not 24h: the relocate3 blat-* variants run one monolithic single-threaded
-# BLAT over the whole read set, and that stage is ~99% of wall time. Measured on
-# riceTElib relocate3-blat-bwaaln: 5x = 8h44m, and BLAT scales linearly with reads
-# (5x/15x/30x FASTQs are 1:3:6), so 15x ~= 26h and 30x ~= 52h -- both overran the
-# old 24h cap (array 27262453, 2026-08-06). The epyc partition allows 30 days.
-# Follow-up to cut this back down: parallel BLAT (pblat) or RelocaTE2-style
-# chunked BLAT; see docs/2026-08-07-ricetelib-parity-run.md.
+# 96h is headroom, not the expected runtime. Re-measured 2026-08-14 across the
+# full riceTElib and divergence panels (arrays 27443131/27443164, 126 tasks):
+# slowest task 2h01m, and mPing tops out at 55m. Most tasks finish in 10-20 min.
+#
+# The older note here claimed riceTElib 5x = 8h44m, extrapolating to 15x ~= 26h
+# and 30x ~= 52h (array 27262453, 2026-08-06, before the BLAT backend fix).
+# Those figures are obsolete and were actively harmful: they are ~35x the
+# measured time and led to a panel being scoped down to 6 tasks on the belief
+# that a full sweep could not finish overnight. Trust the measurement above.
 #SBATCH -o logs/benchmark.%A_%a.log
 #
 # One array task = one (dataset, caller, sample) tuple. Submit only through
