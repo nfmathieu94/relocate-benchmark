@@ -1,5 +1,8 @@
 import unittest
+from dataclasses import replace
 from pathlib import Path
+
+import pandas as pd
 
 from dashboard.data.loaders import load_reports
 from dashboard.data.transforms import (
@@ -7,6 +10,8 @@ from dashboard.data.transforms import (
     accuracy_summary,
     apply_filters,
     available_filters,
+    _f1,
+    cross_dataset_summary,
     head_to_head_long,
     overall_summary,
     precision_summary,
@@ -91,3 +96,53 @@ class TestDashboardTransforms(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCrossDatasetSummary(unittest.TestCase):
+    """One row per dataset x caller, so the presentation can open with a
+    single R3-vs-R2 view instead of switching the dataset selector six times.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        from dashboard.data.loaders import BenchmarkSuite
+
+        bundle = load_reports(FIXTURE_DIR)
+        cls.suite = BenchmarkSuite(
+            report_dir=FIXTURE_DIR,
+            datasets=(
+                replace(bundle, dataset_key="mping", dataset_label="mPing only"),
+                replace(bundle, dataset_key="ricetelib", dataset_label="riceTElib"),
+            ),
+        )
+
+    def test_one_row_per_dataset_and_caller(self):
+        summary = cross_dataset_summary(self.suite)
+        self.assertEqual(
+            set(summary["dataset_key"]), {"mping", "ricetelib"}
+        )
+        self.assertEqual(len(summary), 4)  # 2 datasets x 2 callers
+
+    def test_carries_recall_precision_and_f1(self):
+        summary = cross_dataset_summary(self.suite)
+        for column in ("detection_recall", "mean_sample_precision", "f1"):
+            self.assertIn(column, summary.columns)
+
+    def test_f1_is_the_harmonic_mean_of_recall_and_precision(self):
+        summary = cross_dataset_summary(self.suite)
+        row = summary.iloc[0]
+        r, p = row["detection_recall"], row["mean_sample_precision"]
+        self.assertAlmostEqual(row["f1"], 2 * r * p / (r + p), places=9)
+
+    def test_f1_is_zero_when_recall_and_precision_are_both_zero(self):
+        """Guard the 0/0 that would otherwise produce NaN in the headline table."""
+        frame = pd.DataFrame(
+            {"detection_recall": [0.0], "mean_sample_precision": [0.0]}
+        )
+        self.assertEqual(list(_f1(frame)), [0.0])
+
+    def test_dataset_label_is_preserved_for_display(self):
+        summary = cross_dataset_summary(self.suite)
+        self.assertEqual(
+            set(summary["dataset_label"]), {"mPing only", "riceTElib"}
+        )

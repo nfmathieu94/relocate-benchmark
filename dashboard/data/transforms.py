@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from .loaders import ReportBundle, pretty_caller
+from .loaders import BenchmarkSuite, ReportBundle, pretty_caller
 
 
 @dataclass(frozen=True)
@@ -84,6 +84,43 @@ def overall_summary(correctness: pd.DataFrame, precision: pd.DataFrame) -> pd.Da
         .rename(columns={"overall_precision": "mean_sample_precision"})
     )
     return recall.merge(prec, on="caller", how="outer")
+
+
+def _f1(frame: pd.DataFrame) -> pd.Series:
+    """Harmonic mean of recall and precision, 0 when both are 0.
+
+    Guards the 0/0 that would otherwise put NaN in the headline table -- a
+    caller that finds nothing scores 0, not "missing".
+    """
+    recall = frame["detection_recall"].astype(float)
+    precision = frame["mean_sample_precision"].astype(float)
+    total = recall + precision
+    return ((2 * recall * precision) / total.where(total != 0)).fillna(0.0)
+
+
+def cross_dataset_summary(suite: BenchmarkSuite) -> pd.DataFrame:
+    """Pooled recall, mean precision, and F1 for every dataset x caller.
+
+    Every other page scopes to one dataset via the sidebar selector. This is
+    the one view that puts all datasets side by side, so a reader can see
+    where RelocaTE3 leads and where it only ties.
+    """
+    rows = []
+    for bundle in suite.datasets:
+        summary = overall_summary(bundle.correctness, bundle.precision)
+        summary.insert(0, "dataset_label", bundle.dataset_label)
+        summary.insert(0, "dataset_key", bundle.dataset_key)
+        rows.append(summary)
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "dataset_key", "dataset_label", "caller",
+                "detection_recall", "mean_sample_precision", "f1",
+            ]
+        )
+    combined = pd.concat(rows, ignore_index=True)
+    combined["f1"] = _f1(combined)
+    return combined
 
 
 def accuracy_summary(correctness: pd.DataFrame, metric: str) -> pd.DataFrame:
