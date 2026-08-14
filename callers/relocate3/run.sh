@@ -197,7 +197,12 @@ relocaTE3 find-insertions \
   --min-mapq "$RT3_MIN_MAPQ" \
   "${BOTH_JUNCTION_ARGS[@]}"
 
-if [[ ! -s "$NONREF_TXT" ]]; then
+# Absent means find-insertions failed; present-but-empty means it ran and
+# called nothing, which is a real result -- at 20% TE divergence both callers
+# collapse (RelocaTE2 recall 0.002, RelocaTE3 0.000). Scoring that as zero
+# recall is correct; failing the task loses the data point and, because the
+# aggregation job is afterok, silently blocks the whole panel.
+if [[ ! -f "$NONREF_TXT" ]]; then
   echo "ERROR: expected non-reference insertion table not produced: $NONREF_TXT" >&2
   exit 1
 fi
@@ -222,9 +227,12 @@ relocaTE3 characterize \
 # ---------------------------------------------------------------------------
 # 6. Assert final characterized output exists and is non-empty.
 # ---------------------------------------------------------------------------
-if [[ ! -s "$CHAR_TXT" ]]; then
-  echo "ERROR: characterized output missing or empty: $CHAR_TXT" >&2
+if [[ ! -f "$CHAR_TXT" ]]; then
+  echo "ERROR: characterized output missing: $CHAR_TXT" >&2
   exit 1
+fi
+if [[ ! -s "$CHAR_TXT" ]]; then
+  echo "[$(date)] NOTE: caller reported zero insertions for '$SAMPLE'; recording as a zero-recall result."
 fi
 
 # ---------------------------------------------------------------------------

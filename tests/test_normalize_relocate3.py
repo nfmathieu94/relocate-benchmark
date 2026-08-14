@@ -70,3 +70,46 @@ class TestNormalizeRelocate3(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNormalizeEmptyResult(unittest.TestCase):
+    """A caller that finds nothing is a real benchmark outcome, not an error.
+
+    At 20% TE divergence both callers collapse (measured: RelocaTE2 recall
+    0.002, RelocaTE3 0.000), and RelocaTE3 writes a 0-byte table. That point
+    must score as zero recall, so the normalizer has to emit a header-only
+    TSV instead of raising.
+    """
+
+    def test_zero_byte_table_normalizes_to_header_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            outdir = Path(td) / "S1"
+            results = outdir / "raw" / "results"
+            results.mkdir(parents=True)
+            (results / "ALL.mPing.all_nonref_insert.characTErized.txt").write_text("")
+
+            rc = normalize.main(["--outdir", str(outdir), "--sample", "S1"])
+            self.assertEqual(rc, 0)
+
+            out = outdir / "calls.normalized.tsv"
+            self.assertTrue(out.is_file())
+            with open(out) as fh:
+                rows = list(csv.reader(fh, delimiter="\t"))
+            self.assertEqual(
+                rows[0],
+                ["chrom", "position", "te_family", "tsd", "strand", "status", "caller", "sample"],
+            )
+            self.assertEqual(rows[1:], [])
+
+    def test_header_only_table_normalizes_to_header_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            outdir = Path(td) / "S1"
+            results = outdir / "raw" / "results"
+            results.mkdir(parents=True)
+            (results / "ALL.mPing.all_nonref_insert.characTErized.txt").write_text(CHAR_HEADER)
+
+            rc = normalize.main(["--outdir", str(outdir), "--sample", "S1"])
+            self.assertEqual(rc, 0)
+            with open(outdir / "calls.normalized.tsv") as fh:
+                rows = list(csv.reader(fh, delimiter="\t"))
+            self.assertEqual(rows[1:], [])
