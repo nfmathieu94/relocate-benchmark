@@ -105,6 +105,20 @@ label          = "RelocaTE3-blat/bwa"
 # True RelocaTE2 parity: BLAT TE-search + bwa aln flank->genome (samse/sampe),
 # exactly RelocaTE2's aligner choice. bwa aln (modern bwa 0.7.19) has no seed
 # floor, so it places the short junction flanks bwa mem/minimap2 drop.
+# High-precision variant: same aligners, but only calls with junction reads on
+# BOTH sides. RelocaTE2 does not do this (it keeps a site on left>=1 OR right>=1,
+# relocaTE_insertionFinder.py:365), so this is a RelocaTE3-only policy, kept as a
+# measurable variant rather than a hidden default.
+[callers.relocate3-blat-bwaaln-strict]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "UNK"
+te_aligner     = "blat"
+genome_aligner = "bwaaln"
+require_both_junctions = 1
+label          = "RelocaTE3-blat/bwa-aln (both junctions)"
+
 [callers.relocate3-blat-bwaaln]
 enabled        = true
 adapter        = "callers/relocate3"

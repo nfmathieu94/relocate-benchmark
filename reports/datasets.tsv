@@ -1,3 +1,4 @@
 dataset	label	report_dir
 mping	mPing only	datasets/mping
 ricetelib	riceTElib multi-TE	datasets/ricetelib
+ricetelib_divergence	riceTElib TE divergence	datasets/ricetelib_divergence

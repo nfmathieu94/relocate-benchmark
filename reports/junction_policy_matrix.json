@@ -1,0 +1,261 @@
+{
+  "window": 10,
+  "datasets": {
+    "mping": {
+      "label": "mPing only",
+      "coverages": {
+        "cov5x": {
+          "RelocaTE2": {
+            "n": 3,
+            "calls": 203.33333333333334,
+            "recall": 0.4066666666666667,
+            "precision": 1.0,
+            "f1": 0.5781277049420773,
+            "tsd_real_n": 610,
+            "tsd_real_exact": 597,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.978688524590164,
+            "tsdless_ok_pct": null
+          },
+          "RelocaTE3": {
+            "n": 3,
+            "calls": 235.66666666666666,
+            "recall": 0.4286666666666667,
+            "precision": 0.9098712630253525,
+            "f1": 0.582646396560696,
+            "tsd_real_n": 643,
+            "tsd_real_exact": 556,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.864696734059098,
+            "tsdless_ok_pct": null
+          },
+          "RelocaTE3-strict": {
+            "n": 3,
+            "calls": 188.0,
+            "recall": 0.37600000000000006,
+            "precision": 1.0,
+            "f1": 0.5464545193942794,
+            "tsd_real_n": 564,
+            "tsd_real_exact": 554,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9822695035460993,
+            "tsdless_ok_pct": null
+          }
+        },
+        "cov15x": {
+          "RelocaTE2": {
+            "n": 3,
+            "calls": 329.6666666666667,
+            "recall": 0.6586666666666666,
+            "precision": 0.9989837398373984,
+            "f1": 0.7938864593097037,
+            "tsd_real_n": 988,
+            "tsd_real_exact": 967,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.978744939271255,
+            "tsdless_ok_pct": null
+          },
+          "RelocaTE3": {
+            "n": 3,
+            "calls": 357.3333333333333,
+            "recall": 0.67,
+            "precision": 0.9375647006296995,
+            "f1": 0.7814991776619317,
+            "tsd_real_n": 1005,
+            "tsd_real_exact": 920,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9154228855721394,
+            "tsdless_ok_pct": null
+          },
+          "RelocaTE3-strict": {
+            "n": 3,
+            "calls": 309.0,
+            "recall": 0.618,
+            "precision": 1.0,
+            "f1": 0.7638947247274587,
+            "tsd_real_n": 927,
+            "tsd_real_exact": 917,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9892125134843581,
+            "tsdless_ok_pct": null
+          }
+        },
+        "cov30x": {
+          "RelocaTE2": {
+            "n": 3,
+            "calls": 407.0,
+            "recall": 0.8140000000000001,
+            "precision": 1.0,
+            "f1": 0.8974454334923504,
+            "tsd_real_n": 1221,
+            "tsd_real_exact": 1202,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9844389844389845,
+            "tsdless_ok_pct": null
+          },
+          "RelocaTE3": {
+            "n": 3,
+            "calls": 436.3333333333333,
+            "recall": 0.8293333333333334,
+            "precision": 0.9503686333070677,
+            "f1": 0.8857119038623756,
+            "tsd_real_n": 1244,
+            "tsd_real_exact": 1160,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.932475884244373,
+            "tsdless_ok_pct": null
+          },
+          "RelocaTE3-strict": {
+            "n": 3,
+            "calls": 392.3333333333333,
+            "recall": 0.7846666666666667,
+            "precision": 1.0,
+            "f1": 0.8792932167292781,
+            "tsd_real_n": 1177,
+            "tsd_real_exact": 1159,
+            "tsdless_n": 0,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9847068819031436,
+            "tsdless_ok_pct": null
+          }
+        }
+      }
+    },
+    "ricetelib": {
+      "label": "riceTElib multi-TE",
+      "coverages": {
+        "cov5x": {
+          "RelocaTE2": {
+            "n": 3,
+            "calls": 184.0,
+            "recall": 0.3,
+            "precision": 0.8151584905005906,
+            "f1": 0.43856611896958086,
+            "tsd_real_n": 448,
+            "tsd_real_exact": 423,
+            "tsdless_n": 2,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9441964285714286,
+            "tsdless_ok_pct": 0.0
+          },
+          "RelocaTE3": {
+            "n": 3,
+            "calls": 1557.6666666666667,
+            "recall": 0.35000000000000003,
+            "precision": 0.11232673166200184,
+            "f1": 0.17006496907092036,
+            "tsd_real_n": 466,
+            "tsd_real_exact": 399,
+            "tsdless_n": 59,
+            "tsdless_ok": 52,
+            "tsd_exact_pct": 0.8562231759656652,
+            "tsdless_ok_pct": 0.8813559322033898
+          },
+          "RelocaTE3-strict": {
+            "n": 3,
+            "calls": 186.66666666666666,
+            "recall": 0.308,
+            "precision": 0.8247044677917437,
+            "f1": 0.4484555123769393,
+            "tsd_real_n": 408,
+            "tsd_real_exact": 399,
+            "tsdless_n": 54,
+            "tsdless_ok": 48,
+            "tsd_exact_pct": 0.9779411764705882,
+            "tsdless_ok_pct": 0.8888888888888888
+          }
+        },
+        "cov15x": {
+          "RelocaTE2": {
+            "n": 3,
+            "calls": 294.6666666666667,
+            "recall": 0.49466666666666664,
+            "precision": 0.839333458236125,
+            "f1": 0.6222812475139031,
+            "tsd_real_n": 739,
+            "tsd_real_exact": 715,
+            "tsdless_n": 3,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9675236806495264,
+            "tsdless_ok_pct": 0.0
+          },
+          "RelocaTE3": {
+            "n": 3,
+            "calls": 3210.3333333333335,
+            "recall": 0.5733333333333333,
+            "precision": 0.08930507373698243,
+            "f1": 0.1545372445876286,
+            "tsd_real_n": 761,
+            "tsd_real_exact": 688,
+            "tsdless_n": 99,
+            "tsdless_ok": 88,
+            "tsd_exact_pct": 0.9040735873850198,
+            "tsdless_ok_pct": 0.8888888888888888
+          },
+          "RelocaTE3-strict": {
+            "n": 3,
+            "calls": 318.0,
+            "recall": 0.526,
+            "precision": 0.827105812693612,
+            "f1": 0.6429520605146085,
+            "tsd_real_n": 699,
+            "tsd_real_exact": 688,
+            "tsdless_n": 90,
+            "tsdless_ok": 80,
+            "tsd_exact_pct": 0.9842632331902719,
+            "tsdless_ok_pct": 0.8888888888888888
+          }
+        },
+        "cov30x": {
+          "RelocaTE2": {
+            "n": 3,
+            "calls": 358.6666666666667,
+            "recall": 0.602,
+            "precision": 0.839232071658747,
+            "f1": 0.7010893389205272,
+            "tsd_real_n": 898,
+            "tsd_real_exact": 872,
+            "tsdless_n": 5,
+            "tsdless_ok": 0,
+            "tsd_exact_pct": 0.9710467706013363,
+            "tsdless_ok_pct": 0.0
+          },
+          "RelocaTE3": {
+            "n": 3,
+            "calls": 4295.666666666667,
+            "recall": 0.6920000000000001,
+            "precision": 0.08054657425673058,
+            "f1": 0.1442970826880582,
+            "tsd_real_n": 924,
+            "tsd_real_exact": 843,
+            "tsdless_n": 114,
+            "tsdless_ok": 104,
+            "tsd_exact_pct": 0.9123376623376623,
+            "tsdless_ok_pct": 0.9122807017543859
+          },
+          "RelocaTE3-strict": {
+            "n": 3,
+            "calls": 400.6666666666667,
+            "recall": 0.6506666666666666,
+            "precision": 0.8119461913864795,
+            "f1": 0.7223993569073621,
+            "tsd_real_n": 865,
+            "tsd_real_exact": 843,
+            "tsdless_n": 111,
+            "tsdless_ok": 101,
+            "tsd_exact_pct": 0.9745664739884393,
+            "tsdless_ok_pct": 0.9099099099099099
+          }
+        }
+      }
+    }
+  }
+}

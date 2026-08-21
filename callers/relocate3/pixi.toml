@@ -20,9 +20,19 @@ pybedtools = "*"
 # on PATH to enable the relocate3-blat-* variants.
 
 [pypi-dependencies]
-# Frozen RelocaTE3: pinned to stajichlab/main at the bwaaln genome backend
-# (2026-07-27, commit d4b5597 -- bwa aln/samse/sampe genome stage for the
-# relocate3-blat-bwaaln R2-parity variant; includes support-dominant pairing,
-# --require-both-junctions, BLAT backend, bwa mate-suffix, align-genome
-# mate-anchor, cross-device-move fixes). HTTPS URL so pixi can clone without SSH.
-RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "d4b55974dc4fba22c70e56bc53babb6669e51105" }
+# Frozen RelocaTE3: pinned to stajichlab/main at the BLAT-defaults revert
+# (2026-08-11, commit 6fe6d5d, PR #41). This REPLACES the PR #40 pin 50f939e,
+# which hardcoded RelocaTE2's -minScore=10 -tileSize=7 and proved to be a
+# regression on riceTElib: precision collapsed with depth (0.635/0.406/0.231 at
+# 5x/15x/30x vs RelocaTE2's steady ~0.83) and runtime rose ~8x. At BLAT defaults
+# RelocaTE3 beats RelocaTE2 on recall, precision and F1 at every coverage.
+# Retains PR #40's per-stage aligner option passthrough and the CLI
+# --te-opts/--genome-opts flags. Supersedes d4b5597, whose content it contains.
+#
+# NOTE: this pin is only the FALLBACK. callers/relocate3/env.sh prefers the
+# RT3_REPO dev checkout's own pixi env (editable install of the working tree)
+# whenever RT3_REPO is set, which config/benchmark.toml does set. Keeping this
+# pin correct matters because it is what runs if RT3_REPO is ever unset or
+# missing -- a stale pin here would silently reintroduce the regression.
+# HTTPS URL so pixi can clone without SSH.
+RelocaTE3 = { git = "https://github.com/stajichlab/RelocaTE3.git", rev = "6fe6d5d" }

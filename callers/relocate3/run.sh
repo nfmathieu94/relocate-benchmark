@@ -40,6 +40,25 @@ RT3_MISMATCH="${RT3_MISMATCH:-2}"
 RT3_MIN_MATCH="${RT3_MIN_MATCH:-10}"
 RT3_MIN_TRIMMED="${RT3_MIN_TRIMMED:-10}"
 RT3_MIN_MAPQ="${RT3_MIN_MAPQ:-1}"
+# Junction policy. RelocaTE2 keeps a site on `left >= 1 OR right >= 1`
+# (relocaTE_insertionFinder.py:365), and RelocaTE3's own default matches that.
+# This adapter used to pass --require-both-junctions unconditionally, which made
+# RelocaTE3 strictly stricter than the tool it is being compared against and cost
+# it the one-sided calls RelocaTE2 reports -- disproportionately heterozygous and
+# somatic sites, where only one junction is sampled. Default off for a
+# like-for-like comparison; set to 1 for the high-precision variant.
+RT3_REQUIRE_BOTH_JUNCTIONS="${RT3_REQUIRE_BOTH_JUNCTIONS:-0}"
+# Build the flag explicitly: "${VAR:+...}" would expand for the string "0" too,
+# which is precisely the case that must NOT pass the flag.
+# Always pass the policy explicitly. RelocaTE3's own default is now ON, so
+# passing nothing would silently make the permissive variant strict and the two
+# benchmark variants indistinguishable.
+BOTH_JUNCTION_ARGS=()
+case "${RT3_REQUIRE_BOTH_JUNCTIONS,,}" in
+  1|true|yes|on) BOTH_JUNCTION_ARGS=(--require-both-junctions) ;;
+  0|false|no|off|"") BOTH_JUNCTION_ARGS=(--no-require-both-junctions) ;;
+  *) echo "ERROR: RT3_REQUIRE_BOTH_JUNCTIONS must be 0/1 (got '$RT3_REQUIRE_BOTH_JUNCTIONS')" >&2; exit 1 ;;
+esac
 
 for f in "$R1" "$R2" "$REFERENCE" "$TE_LIBRARY" "$REPEATMASKER"; do
   if [[ ! -f "$f" ]]; then
@@ -108,6 +127,7 @@ echo "  match/trim  : ${RT3_MIN_MATCH}/${RT3_MIN_TRIMMED}"
 echo "  te_name/TSD : ${TE_NAME}/${TSD_PATTERN}"
 echo "  target      : $TARGET"
 echo "  min-mapq    : $RT3_MIN_MAPQ"
+echo "  both-junc   : $RT3_REQUIRE_BOTH_JUNCTIONS"
 
 # Reference inputs are external and read-only to this benchmark. Substantial
 # indexing also does not belong inside every array task.
@@ -175,9 +195,14 @@ relocaTE3 find-insertions \
   --reference-ins "$REPEATMASKER" \
   --mismatch "$RT3_MISMATCH" \
   --min-mapq "$RT3_MIN_MAPQ" \
-  --require-both-junctions
+  "${BOTH_JUNCTION_ARGS[@]}"
 
-if [[ ! -s "$NONREF_TXT" ]]; then
+# Absent means find-insertions failed; present-but-empty means it ran and
+# called nothing, which is a real result -- at 20% TE divergence both callers
+# collapse (RelocaTE2 recall 0.002, RelocaTE3 0.000). Scoring that as zero
+# recall is correct; failing the task loses the data point and, because the
+# aggregation job is afterok, silently blocks the whole panel.
+if [[ ! -f "$NONREF_TXT" ]]; then
   echo "ERROR: expected non-reference insertion table not produced: $NONREF_TXT" >&2
   exit 1
 fi
@@ -202,9 +227,12 @@ relocaTE3 characterize \
 # ---------------------------------------------------------------------------
 # 6. Assert final characterized output exists and is non-empty.
 # ---------------------------------------------------------------------------
-if [[ ! -s "$CHAR_TXT" ]]; then
-  echo "ERROR: characterized output missing or empty: $CHAR_TXT" >&2
+if [[ ! -f "$CHAR_TXT" ]]; then
+  echo "ERROR: characterized output missing: $CHAR_TXT" >&2
   exit 1
+fi
+if [[ ! -s "$CHAR_TXT" ]]; then
+  echo "[$(date)] NOTE: caller reported zero insertions for '$SAMPLE'; recording as a zero-recall result."
 fi
 
 # ---------------------------------------------------------------------------

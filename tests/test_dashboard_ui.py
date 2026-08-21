@@ -14,6 +14,9 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures" / "dashboard_reports"
 # Information page is a static glossary and intentionally has no data filters.
 ENTRYPOINTS = {
     Path("dashboard/app.py"): ("RelocaTE benchmark dashboard", True),
+    # The cross-dataset page compares datasets side by side, so it uses the
+    # whole suite and deliberately renders no per-dataset sidebar filters.
+    Path("dashboard/pages/00_R3_vs_R2.py"): ("RelocaTE3 vs RelocaTE2", False),
     Path("dashboard/pages/01_information.py"): ("Information & metrics glossary", False),
     Path("dashboard/pages/02_accuracy.py"): ("Accuracy", True),
     Path("dashboard/pages/03_somatic.py"): ("Somatic insertion performance", True),

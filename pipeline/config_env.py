@@ -22,6 +22,7 @@ ADAPTER_ENV_MAP: dict[str, dict[str, str]] = {
         "tsd": "TSD_PATTERN",
         "te_aligner": "RT3_TE_ALIGNER",
         "genome_aligner": "RT3_GENOME_ALIGNER",
+        "require_both_junctions": "RT3_REQUIRE_BOTH_JUNCTIONS",
     },
     "relocate2": {
         "aligner": "RT2_ALIGNER",

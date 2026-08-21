@@ -2,7 +2,16 @@
 #SBATCH -p epyc
 #SBATCH --mem=64gb
 #SBATCH --cpus-per-task=8
-#SBATCH --time=24:00:00
+#SBATCH --time=96:00:00
+# 96h is headroom, not the expected runtime. Re-measured 2026-08-14 across the
+# full riceTElib and divergence panels (arrays 27443131/27443164, 126 tasks):
+# slowest task 2h01m, and mPing tops out at 55m. Most tasks finish in 10-20 min.
+#
+# The older note here claimed riceTElib 5x = 8h44m, extrapolating to 15x ~= 26h
+# and 30x ~= 52h (array 27262453, 2026-08-06, before the BLAT backend fix).
+# Those figures are obsolete and were actively harmful: they are ~35x the
+# measured time and led to a panel being scoped down to 6 tasks on the belief
+# that a full sweep could not finish overnight. Trust the measurement above.
 #SBATCH -o logs/benchmark.%A_%a.log
 #
 # One array task = one (dataset, caller, sample) tuple. Submit only through
@@ -60,7 +69,12 @@ export DATASET SAMPLE R1 R2 OUTDIR THREADS
 export REFERENCE TE_LIBRARY REPEATMASKER TE_NAME
 
 eval "$("$PY" pipeline/config_env.py --config "$CONFIG" caller-env "$CALLER")"
+# Allowlist of caller-env variables to export. A caller key added to
+# ADAPTER_ENV_MAP in config_env.py must ALSO be listed here, or it is silently
+# dropped and the adapter falls back to its default -- which is how the
+# `-strict` variant first ran without its own flag.
 for variable in RT3_REPO TSD_PATTERN RT3_TE_ALIGNER RT3_GENOME_ALIGNER \
+                RT3_REQUIRE_BOTH_JUNCTIONS \
                 RT2_ALIGNER RT2_SIZE RT2_MISMATCH; do
   if [[ -n "${!variable+x}" ]]; then
     export "${variable?}"

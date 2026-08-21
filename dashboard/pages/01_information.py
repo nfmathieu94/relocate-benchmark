@@ -37,13 +37,22 @@ measurement rather than an estimate.
 Each caller name encodes its aligner choices as **`<TE-search aligner>/<genome
 aligner>`** — e.g. `relocate3-blat/bwaaln` uses BLAT to find TE-containing reads
 and `bwa aln` to place the trimmed flanks on the genome.
+
+A trailing **`-strict`** marks the junction policy rather than an aligner. A
+strict variant runs with `--require-both-junctions`, reporting an insertion only
+when junction reads are found on **both** sides of the breakpoint; the plain
+variant also reports **one-sided** calls. The difference is a precision/recall
+trade, and it is large: one-sided evidence is mostly signal on a single-family
+panel and mostly noise on a multi-family one.
 """
     )
 
     st.header("The three datasets")
     st.markdown(
-        "Pick a dataset from the **sidebar selector**. Only one dataset is shown at "
-        "a time, so metrics from different datasets are never mixed."
+        "Pick a dataset from the **sidebar selector**. Every page except "
+        "**RelocaTE3 vs RelocaTE2** shows one dataset at a time, so metrics from "
+        "different datasets are never mixed. That page compares datasets side by "
+        "side and keeps each one's metrics on its own row or bar."
     )
     with st.expander("mPing panel — single-family (deep dive)", expanded=True):
         st.markdown(

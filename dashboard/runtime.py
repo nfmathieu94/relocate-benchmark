@@ -24,6 +24,21 @@ def configure_page(title: str) -> None:
     )
 
 
+def load_suite() -> BenchmarkSuite:
+    """Every dataset at once, for the cross-dataset overview page.
+
+    ``load_bundle`` scopes to one dataset via the sidebar selector; the
+    overview compares across them and needs the whole suite.
+    """
+    report_dir = report_dir_from_args()
+    try:
+        return _cached_load(str(report_dir))
+    except ReportValidationError as error:
+        show_validation_error(error)
+        st.stop()
+        raise AssertionError("streamlit.stop() returned unexpectedly")
+
+
 def load_bundle() -> ReportBundle:
     report_dir = report_dir_from_args()
     try:
