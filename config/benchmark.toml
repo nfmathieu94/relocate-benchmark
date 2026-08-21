@@ -102,15 +102,11 @@ te_aligner     = "blat"
 genome_aligner = "bwa"
 label          = "RelocaTE3-blat/bwa"
 
-# True RelocaTE2 parity: BLAT TE-search + bwa aln flank->genome (samse/sampe),
-# exactly RelocaTE2's aligner choice. bwa aln (modern bwa 0.7.19) has no seed
-# floor, so it places the short junction flanks bwa mem/minimap2 drop.
-# High-precision variant: same aligners, but only calls with junction reads on
-# BOTH sides. RelocaTE2 does not do this (it keeps a site on left>=1 OR right>=1,
-# relocaTE_insertionFinder.py:365), so this is a RelocaTE3-only policy, kept as a
-# measurable variant rather than a hidden default.
+# DEPRECATED 2026-08-14: now identical to `relocate3-blat-bwaaln`, which carries
+# require_both_junctions = 1 as of the correction below. Disabled rather than
+# deleted so its existing reports/ and runs/ directories stay interpretable.
 [callers.relocate3-blat-bwaaln-strict]
-enabled        = true
+enabled        = false
 adapter        = "callers/relocate3"
 repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd            = "UNK"
@@ -119,6 +115,20 @@ genome_aligner = "bwaaln"
 require_both_junctions = 1
 label          = "RelocaTE3-blat/bwa-aln (both junctions)"
 
+# True RelocaTE2 parity and RelocaTE3's shipped default: BLAT TE-search + bwa aln
+# flank->genome (samse/sampe), exactly RelocaTE2's aligner choice. bwa aln
+# (modern bwa 0.7.19) has no seed floor, so it places the short junction flanks
+# bwa mem/minimap2 drop.
+#
+# CORRECTED 2026-08-14: this variant previously ran permissive because the
+# adapter comment claimed require_both_junctions was "a RelocaTE3-only policy
+# RelocaTE2 does not do", citing relocaTE_insertionFinder.py:365. That reading is
+# wrong -- :365 only admits a row into the intermediate txt, while the branch at
+# :373 gives every one-sided call a sentinel TSD that characterizer.pl:91 and
+# clean_false_positive.py:99,107 then drop. RelocaTE2's final output is
+# two-sided-only plus the supporting_junction class. Running permissive here was
+# comparing RelocaTE3's unfiltered candidates against RelocaTE2's filtered calls,
+# which is what produced this variant's precision of 0.08 on riceTElib.
 [callers.relocate3-blat-bwaaln]
 enabled        = true
 adapter        = "callers/relocate3"
@@ -126,4 +136,5 @@ repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3
 tsd            = "UNK"
 te_aligner     = "blat"
 genome_aligner = "bwaaln"
+require_both_junctions = 1
 label          = "RelocaTE3-blat/bwa-aln"
