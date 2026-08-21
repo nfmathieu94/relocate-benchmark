@@ -39,15 +39,28 @@ RT3_GENOME_ALIGNER="${RT3_GENOME_ALIGNER:-${RT3_ALIGNER:-minimap2}}"
 RT3_MISMATCH="${RT3_MISMATCH:-2}"
 RT3_MIN_MATCH="${RT3_MIN_MATCH:-10}"
 RT3_MIN_TRIMMED="${RT3_MIN_TRIMMED:-10}"
-RT3_MIN_MAPQ="${RT3_MIN_MAPQ:-1}"
-# Junction policy. RelocaTE2 keeps a site on `left >= 1 OR right >= 1`
-# (relocaTE_insertionFinder.py:365), and RelocaTE3's own default matches that.
-# This adapter used to pass --require-both-junctions unconditionally, which made
-# RelocaTE3 strictly stricter than the tool it is being compared against and cost
-# it the one-sided calls RelocaTE2 reports -- disproportionately heterozygous and
-# somatic sites, where only one junction is sampled. Default off for a
-# like-for-like comparison; set to 1 for the high-precision variant.
-RT3_REQUIRE_BOTH_JUNCTIONS="${RT3_REQUIRE_BOTH_JUNCTIONS:-0}"
+# 0 = no MAPQ admission gate, matching RelocaTE2 and RelocaTE3's own default.
+# RelocaTE2 never filters reads on MAPQ; it records MAPQ<29 as low quality
+# (relocaTE_insertionFinder.py:1523,1539) and drops only calls resting entirely
+# on such reads (:226-241). This adapter previously forced 1, which discarded the
+# single MAPQ-0 read that often carries the second junction.
+RT3_MIN_MAPQ="${RT3_MIN_MAPQ:-0}"
+# Junction policy.
+#
+# CORRECTED 2026-08-14. This comment used to claim that RelocaTE2 keeps a site on
+# `left >= 1 OR right >= 1` (relocaTE_insertionFinder.py:365), and therefore that
+# passing --require-both-junctions made RelocaTE3 stricter than the tool it is
+# compared against. That reading is wrong. Line 365 only admits a row into the
+# intermediate all_nonref_insert.txt; the branch at :373 writes a real TSD ONLY
+# when both sides have junction reads, and every one-sided case gets a sentinel
+# (supporting_junction / singleton / insufficient_data) that is then dropped by
+# characterizer.pl:91 and clean_false_positive.py:99,107. RelocaTE2's final call
+# set is two-sided-only plus the supporting_junction class (3 of 360 calls at
+# riceTElib cov30x_rep1; 5 of 412 at mPing cov30x_rep1).
+#
+# So ON is the like-for-like setting and the RelocaTE3 default. Default here is
+# ON to match; set to 0 only for the deliberately permissive variant.
+RT3_REQUIRE_BOTH_JUNCTIONS="${RT3_REQUIRE_BOTH_JUNCTIONS:-1}"
 # Build the flag explicitly: "${VAR:+...}" would expand for the string "0" too,
 # which is precisely the case that must NOT pass the flag.
 # Always pass the policy explicitly. RelocaTE3's own default is now ON, so
