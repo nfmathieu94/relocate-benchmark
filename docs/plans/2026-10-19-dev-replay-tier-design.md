@@ -52,8 +52,9 @@ Same steps as `callers/relocate3/run.sh`, except:
 - Never writes inside the cache directory.
 
 Config keys (exported through `pipeline/config_env.py` and the allowlist in
-`pipeline/run_benchmark_array.sh`): `replay_root` → `RT3_REPLAY_ROOT`,
-`replay_caller` → `RT3_REPLAY_CALLER`, `replay_manifest` → `RT3_REPLAY_MANIFEST`.
+`pipeline/run_benchmark_array.sh`): `replay_manifest` → `RT3_REPLAY_MANIFEST`.
+(Revised during implementation: the run root, source caller and TE aligner
+live in the manifest, so no separate root/caller keys are needed.)
 
 ### 2. Cache guard: `callers/relocate3-replay/check_cache.py`
 
@@ -65,7 +66,11 @@ Exit non-zero, before work, when any of these fail:
   that produced the cached BAMs.
 - The staged TE library's sha256 differs from the value recorded in the replay
   manifest for that dataset.
-- A cached BAM or index is missing, or the source sample lacks `.run_complete`.
+- A cached BAM or index is missing or empty, or the source sample lacks `.run_complete`.
+- The replay caller's `te_aligner` differs from the TE aligner recorded in the
+  manifest (added after code review).
+- R1, R2 or the reference is newer than the source sample's `.run_complete`
+  (mtime check, not content; added after code review).
 
 Known blind spot: the mapping half of `librelocate.py` (`identify_TE_reads`)
 cannot be guarded by file hash because the same file holds the trimming code

@@ -1219,7 +1219,7 @@ adapter         = "callers/relocate3-replay"
 adapter_type    = "relocate3"
 repo            = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd             = "UNK"
-te_aligner      = "blat"      # informational: replay never runs the TE search
+te_aligner      = "blat"      # must equal the manifest's te_aligner (guard-enforced)
 genome_aligner  = "bwaaln"
 require_both_junctions = 1
 replay_manifest = "config/replay/checkpoint-213a0df.json"
@@ -1234,6 +1234,7 @@ MAIN=../relocate-benchmark
 python3.12 callers/relocate3-replay/check_cache.py register \
   --run-root runs/checkpoint-213a0df \
   --source-caller relocate3-blat-bwaaln \
+  --te-aligner blat \
   --source-rev 213a0df99af71a57fffad726138593b152fc9a77 \
   --te-library mping=$MAIN/cache/te_libraries/mping/library.fa \
   --te-library ricetelib=$MAIN/cache/te_libraries/ricetelib/library.fa \
