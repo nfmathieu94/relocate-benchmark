@@ -219,6 +219,22 @@ class ReplayAdapterTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("Replay source:", result.stdout)
 
+    def test_import_check_falls_back_to_python3_for_sh_trampoline(self):
+        # pip/uv write a `#!/bin/sh` trampoline when the interpreter path exceeds
+        # 127 chars; that shebang must not be used to run the Python check.
+        logic = self.stub / "relocaTE3.py"
+        logic.write_text((self.stub / "relocaTE3").read_text())
+        (self.stub / "relocaTE3").write_text(
+            f'#!/bin/sh\nexec "{sys.executable}" "{logic}" "$@"\n')
+        (self.stub / "python3").unlink()
+        (self.stub / "python3").write_text(
+            f'#!/bin/sh\necho python3-used >> "$STUB_LOG"\nexec "{sys.executable}" "$@"\n')
+        (self.stub / "python3").chmod(0o755)
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Replay source:", result.stdout)
+        self.assertIn("python3-used", self.log.read_text())
+
     def test_replay_te_aligner_mismatch_is_refused(self):
         self.env["RT3_TE_ALIGNER"] = "minimap2"
         result = self.run_adapter()

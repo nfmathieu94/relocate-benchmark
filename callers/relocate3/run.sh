@@ -130,9 +130,12 @@ if [[ -n "$REPLAY_RAW" ]]; then
   export PYTHONPATH="$RT3_REPO/src${PYTHONPATH:+:$PYTHONPATH}"
   # Check with the interpreter relocaTE3 itself runs under (its shebang), so a
   # different python3 on PATH cannot pass the check for the wrong environment.
+  # Trust only a python shebang: pip/uv write a `#!/bin/sh` trampoline when the
+  # interpreter path exceeds 127 chars; fall back to python3 then.
   RT3_PYTHON="python3"
   _rt3_shebang="$(LC_ALL=C head -n 1 "$(command -v relocaTE3)" 2>/dev/null | tr -d '\0' || true)"
-  if [[ "$_rt3_shebang" =~ ^\#\!(/[^[:space:]]+)[[:space:]]*$ && -x "${BASH_REMATCH[1]}" ]]; then
+  if [[ "$_rt3_shebang" =~ ^\#\!(/[^[:space:]]+)[[:space:]]*$ && -x "${BASH_REMATCH[1]}" \
+        && "${BASH_REMATCH[1]##*/}" == python* ]]; then
     RT3_PYTHON="${BASH_REMATCH[1]}"
   fi
   "$RT3_PYTHON" - <<'PY'
