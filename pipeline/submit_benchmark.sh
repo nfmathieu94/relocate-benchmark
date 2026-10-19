@@ -226,6 +226,17 @@ _csv_has() {
   return 1
 }
 
+# TE aligners (one per line on stdin) that need a TE-library index built here,
+# unique and sorted. BLAT needs none, so a blat-only selection activates no env.
+te_aligners_needing_index() {
+  local aligner
+  while IFS= read -r aligner; do
+    if [[ -n "$aligner" && "$aligner" != blat ]]; then
+      printf '%s\n' "$aligner"
+    fi
+  done | sort -u
+}
+
 TE_ALIGNERS=()
 while IFS= read -r caller; do
   [[ -n "$caller" ]] || continue
@@ -235,7 +246,11 @@ while IFS= read -r caller; do
   [[ -z "$aligner" ]] || TE_ALIGNERS+=("$aligner")
 done < <("${PY[@]}" pipeline/config_env.py --config "$CONFIG" callers)
 
+INDEX_ALIGNERS=()
 if ((${#TE_ALIGNERS[@]})); then
+  mapfile -t INDEX_ALIGNERS < <(printf '%s\n' "${TE_ALIGNERS[@]}" | te_aligners_needing_index)
+fi
+if ((${#INDEX_ALIGNERS[@]})); then
   ADAPTER_DIR="callers/relocate3"
   source callers/relocate3/env.sh
   while IFS=$'\t' read -r dataset label panel_root; do
@@ -250,10 +265,9 @@ if ((${#TE_ALIGNERS[@]})); then
         minimap2)
           [[ -s "${TE_LIBRARY}.mmi" ]] ||
             minimap2 -d "${TE_LIBRARY}.mmi" "$TE_LIBRARY" ;;
-        blat) : ;;
         *) echo "WARN: unknown TE aligner '$aligner'; task will prepare it" >&2 ;;
       esac
-    done < <(printf '%s\n' "${TE_ALIGNERS[@]}" | sort -u)
+    done < <(printf '%s\n' "${INDEX_ALIGNERS[@]}")
   done <<< "$DATASET_ROWS"
 fi
 
