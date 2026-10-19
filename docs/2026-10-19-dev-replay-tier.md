@@ -117,6 +117,31 @@ Fix: revert the change, or use the full tier (`config/benchmark.toml`).
   (`pretty_caller` in `scoring/report_lib.R` expects `relocate3-<te>-<genome>`);
   `relocate2-frozen` shows as `RelocaTE2-frozen`.
 
+## Checkpoint source guard re-pin
+
+`config/checkpoint-213a0df.source.json` pins benchmark files that this branch
+edits: `pipeline/config_env.py`, `pipeline/run_benchmark_array.sh` and
+`pipeline/submit_benchmark.sh` (no other pinned file changed; `callers/relocate3/run.sh`
+is not pinned). Their hashes were refreshed; the RelocaTE3 `revision` and
+`source_sha256` entries are unchanged, and the previous manifest is preserved as
+`config/checkpoint-213a0df.pre-dev-replay.source.json` (same precedent as
+`pre-r2-recovery`). Checkpoint behavior is unchanged:
+
+- `config_env.py` adds new keys (`replay_manifest`, `frozen.*`) the checkpoint
+  config never sets; `RT3_REPO` is overridden only by `--rt3-repo`, which
+  `submit_benchmark.sh` now refuses for `benchmark.checkpoint-*.toml`.
+- `run_benchmark_array.sh` clears caller variables before `caller-env`; the
+  checkpoint config sets every one its callers read (`repo`, `tsd`,
+  `te_aligner`, `genome_aligner`, `require_both_junctions`; RelocaTE2
+  `aligner`, `size`, `mismatch`).
+- `submit_benchmark.sh` changes only `--rt3-repo` handling and skips env
+  activation for blat-only selections; the checkpoint profile's bowtie2/bwa/
+  minimap2 TE-index preparation is unchanged.
+
+`tests/test_checkpoint_source_manifest.py` recomputes every pinned benchmark
+hash, so a future edit without a re-pin fails at test time, not in every
+checkpoint task.
+
 ## Acceptance gate
 
 Results: TBD. Procedure (maintainer runs it, in the main checkout, after merge):
