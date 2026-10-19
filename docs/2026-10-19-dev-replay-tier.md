@@ -100,15 +100,22 @@ Fix: revert the change, or use the full tier (`config/benchmark.toml`).
   (same as the other adapters).
 - (h) The gate script expects a complete 72-sample dev run. Quick-tier subsets
   report the unrun samples as "missing".
-- (j) Before the first `--rt3-repo` run against a new RelocaTE3 worktree,
+- (i) Before the first `--rt3-repo` run against a new RelocaTE3 worktree,
   install that worktree's pixi environment once (`pixi install` in the worktree,
   on a compute node). Every array task activates `$RT3_REPO/pixi.toml`; without
   a prebuilt environment, concurrent tasks would each try to create it, so
   `submit_benchmark.sh` refuses a `--rt3-repo` without
   `.pixi/envs/default/bin/relocaTE3`. It also refuses `--rt3-repo` with any
   `benchmark.checkpoint-*.toml` profile, which is pinned to its RelocaTE3 revision.
-- (i) The cache lives in `runs/checkpoint-213a0df` (382 GB). Do not delete it
+- (j) The cache lives in `runs/checkpoint-213a0df` (382 GB). Do not delete it
   while the dev tier is in use. `/bigdata` was 95% full on 2026-10-19.
+- (k) `relocate2-frozen` copies the checkpoint's stored `calls.normalized.tsv`
+  and does not re-normalize, so it keeps the checkpoint-era RelocaTE2
+  normalizer. Only scoring-policy updates (`scoring/`, `lib/`) propagate to it;
+  a later change to `callers/relocate2/normalize.py` does not.
+- (l) Cosmetic: PDF report labels show `relocate3-replay` unprettified
+  (`pretty_caller` in `scoring/report_lib.R` expects `relocate3-<te>-<genome>`);
+  `relocate2-frozen` shows as `RelocaTE2-frozen`.
 
 ## Acceptance gate
 

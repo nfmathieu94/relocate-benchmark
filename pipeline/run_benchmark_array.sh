@@ -74,11 +74,14 @@ export REFERENCE TE_LIBRARY REPEATMASKER TE_NAME
 # Allowlist of caller-env variables. A caller key added to ADAPTER_ENV_MAP in
 # config_env.py must ALSO be listed here, or it is silently dropped and the
 # adapter falls back to its default -- which is how the `-strict` variant first
-# ran without its own flag. The list is cleared before caller-env runs:
-# submit_benchmark.sh uses --export=ALL, so a value left in the submitting shell
-# (e.g. a stray RT3_REPLAY_MANIFEST, which turns a full run into a replay) would
-# otherwise reach callers whose config does not set it. RT3_REPO_OVERRIDE is
-# deliberately NOT listed: config_env.py reads it.
+# ran without its own flag. The variables in this list (and only these) are
+# cleared before caller-env runs: submit_benchmark.sh uses --export=ALL, so a
+# value left in the submitting shell (e.g. a stray RT3_REPLAY_MANIFEST, which
+# turns a full run into a replay) would otherwise reach callers whose config
+# does not set it. Adapter-internal knobs not set through config (RT3_MIN_MATCH,
+# RT3_MIN_TRIMMED, RT3_MISMATCH, RT3_MIN_MAPQ, ...) are NOT cleared and still
+# pass through from the submitting shell. RT3_REPO_OVERRIDE is deliberately NOT
+# listed: config_env.py reads it.
 CALLER_VARIABLES=(RT3_REPO TSD_PATTERN RT3_TE_ALIGNER RT3_GENOME_ALIGNER
                   RT3_REQUIRE_BOTH_JUNCTIONS RT3_REPLAY_MANIFEST
                   RT2_ALIGNER RT2_SIZE RT2_MISMATCH
