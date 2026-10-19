@@ -1,0 +1,16 @@
+{
+  "source_rev": "213a0df99af71a57fffad726138593b152fc9a77",
+  "run_root": "runs/checkpoint-213a0df",
+  "source_caller": "relocate3-blat-bwaaln",
+  "te_aligner": "blat",
+  "guarded_files": [
+    "src/RelocaTE3/aligners.py",
+    "src/RelocaTE3/ReadLibrary.py"
+  ],
+  "te_library_sha256": {
+    "mping": "00639d36ab72ce62e6c27fa895e4e115b370900c21efa7c489c21ac99ea6585a",
+    "ricetelib": "6f3b324d1a56c2e3462a116ff0d3c91708897fd5f0ed76376d8db08149fa0189",
+    "ricetelib_divergence": "6f3b324d1a56c2e3462a116ff0d3c91708897fd5f0ed76376d8db08149fa0189"
+  },
+  "registered": "2026-10-19T14:46:17-07:00"
+}
