@@ -77,8 +77,9 @@ eval "$("$PY" pipeline/config_env.py --config "$CONFIG" caller-env "$CALLER")"
 # dropped and the adapter falls back to its default -- which is how the
 # `-strict` variant first ran without its own flag.
 for variable in RT3_REPO TSD_PATTERN RT3_TE_ALIGNER RT3_GENOME_ALIGNER \
-                RT3_REQUIRE_BOTH_JUNCTIONS \
-                RT2_ALIGNER RT2_SIZE RT2_MISMATCH; do
+                RT3_REQUIRE_BOTH_JUNCTIONS RT3_REPLAY_MANIFEST \
+                RT2_ALIGNER RT2_SIZE RT2_MISMATCH \
+                FROZEN_SOURCE_ROOT FROZEN_SOURCE_CALLER; do
   if [[ -n "${!variable+x}" ]]; then
     export "${variable?}"
   fi

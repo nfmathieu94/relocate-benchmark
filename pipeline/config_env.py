@@ -8,6 +8,7 @@ with a single ``[dataset]`` table remain readable as dataset ``default``.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
@@ -23,11 +24,16 @@ ADAPTER_ENV_MAP: dict[str, dict[str, str]] = {
         "te_aligner": "RT3_TE_ALIGNER",
         "genome_aligner": "RT3_GENOME_ALIGNER",
         "require_both_junctions": "RT3_REQUIRE_BOTH_JUNCTIONS",
+        "replay_manifest": "RT3_REPLAY_MANIFEST",
     },
     "relocate2": {
         "aligner": "RT2_ALIGNER",
         "size": "RT2_SIZE",
         "mismatch": "RT2_MISMATCH",
+    },
+    "frozen": {
+        "source_root": "FROZEN_SOURCE_ROOT",
+        "source_caller": "FROZEN_SOURCE_CALLER",
     },
 }
 
@@ -178,11 +184,13 @@ def _caller_env(cfg: dict, name: str) -> str:
     mapping = ADAPTER_ENV_MAP.get(_adapter_key(table))
     if not mapping:
         return ""
-    lines = [
-        f"{env}={_sq(table[key])}"
-        for key, env in mapping.items()
-        if key in table
-    ]
+    values = {env: table[key] for key, env in mapping.items() if key in table}
+    # submit_benchmark.sh --rt3-repo: test another RelocaTE3 checkout (e.g. a
+    # feature worktree) without editing the config.
+    override = os.environ.get("RT3_REPO_OVERRIDE")
+    if override and "RT3_REPO" in values:
+        values["RT3_REPO"] = override
+    lines = [f"{env}={_sq(value)}" for env, value in values.items()]
     return ("\n".join(lines) + "\n") if lines else ""
 
 
