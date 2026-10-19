@@ -61,6 +61,22 @@ tsd     = "..."
 
 
 class TestConfigEnv(unittest.TestCase):
+    def test_private_relocate3_adapter_exports_full_contract(self):
+        for te, genome in (("blat", "bwaaln"), ("blat", "bwa"),
+                           ("bwa", "bwa"), ("bowtie2", "bwa"),
+                           ("minimap2", "minimap2")):
+            with self.subTest(te=te, genome=genome):
+                table = dict(adapter="callers/relocate3-checkpoint-213a0df",
+                             adapter_type="relocate3", repo="/pinned/source",
+                             tsd="UNK", te_aligner=te, genome_aligner=genome,
+                             require_both_junctions=1)
+                out = config_env._caller_env({"callers":{"R3":table}}, "R3")
+                self.assertIn("RT3_REPO='/pinned/source'", out)
+                self.assertIn("TSD_PATTERN='UNK'", out)
+                self.assertIn(f"RT3_TE_ALIGNER='{te}'", out)
+                self.assertIn(f"RT3_GENOME_ALIGNER='{genome}'", out)
+                self.assertIn("RT3_REQUIRE_BOTH_JUNCTIONS='1'", out)
+
     def test_globals(self):
         with tempfile.TemporaryDirectory() as td:
             cfg, _ = _make_config(Path(td))

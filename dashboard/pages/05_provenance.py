@@ -1,6 +1,7 @@
 """Configuration, environment, and report provenance page."""
 from __future__ import annotations
 
+import os
 import sys
 import tomllib
 from datetime import datetime
@@ -32,7 +33,8 @@ def main() -> None:
         "variable TSD lengths from junction reads."
     )
 
-    config_path = Path("config/benchmark.toml")
+    config_path = Path(os.environ.get("CONFIG", "config/benchmark.toml"))
+    st.caption(f"Configuration: `{config_path}` (current file; not an archived run snapshot).")
     if config_path.is_file():
         with open(config_path, "rb") as handle:
             config = tomllib.load(handle)

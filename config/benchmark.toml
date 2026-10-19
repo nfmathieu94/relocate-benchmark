@@ -55,11 +55,15 @@ aligner  = "blat"
 size     = 250
 mismatch = 2
 
+# PARITY FOCUS 2026-08-21: only RelocaTE2 and the BLAT + bwa aln RelocaTE3
+# caller are enabled while the riceTElib false-positive fixes are evaluated.
+# Keep the other aligner variants registered below so they can be re-enabled
+# after R2/R3 behavior matches.
 # RelocaTE3 aligner variants. Each is a caller keyed `relocate3-<te>-<genome>`
 # (filesystem-safe) with a display `label` "RelocaTE3-<te>/<genome>". All share
 # the callers/relocate3 adapter and differ only by te_aligner/genome_aligner.
 [callers.relocate3-minimap2-minimap2]
-enabled        = true
+enabled        = false
 adapter        = "callers/relocate3"
 repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd            = "UNK"   # infer each TSD's length and sequence from junction reads
@@ -68,7 +72,7 @@ genome_aligner = "minimap2"
 label          = "RelocaTE3-minimap2/minimap2"
 
 [callers.relocate3-bwa-bwa]
-enabled        = true
+enabled        = false
 adapter        = "callers/relocate3"
 repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd            = "UNK"
@@ -84,7 +88,7 @@ label          = "RelocaTE3-bwa/bwa"
 # --local (soft-clips junction reads). See docs/2026-07-22-bowtie2-index-race.md
 # and RT3 todo/bowtie2-te-mapping-needs-local.md.
 [callers.relocate3-bowtie2-bwa]
-enabled        = true
+enabled        = false
 adapter        = "callers/relocate3"
 repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd            = "UNK"
@@ -94,7 +98,7 @@ label          = "RelocaTE3-bowtie2/bwa"
 
 # Opt-in (needs `blat` on PATH; not pinned -- bioconda blat conflicts with matplotlib).
 [callers.relocate3-blat-bwa]
-enabled        = true
+enabled        = false
 adapter        = "callers/relocate3"
 repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
 tsd            = "UNK"

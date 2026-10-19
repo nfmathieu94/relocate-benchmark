@@ -121,9 +121,10 @@ if [[ "$RT3_GENOME_ALIGNER" == "minimap2" ]]; then
 else
   GENOME_BAM="$RAW/${SAMPLE}.repeat.${RT3_GENOME_ALIGNER}.sorted.bam"
 fi
+JUNCTION_FULLREADS_BAM="$RAW/genome_aln/${SAMPLE}.fullreads.genome.bam"
 NONREF_TXT="$RAW/results/${TARGET}.${TE_NAME}.all_nonref_insert.txt"
 CHAR_TXT="$RAW/results/${TARGET}.${TE_NAME}.all_nonref_insert.characTErized.txt"
-FULLREADS_BAM="$RAW/${SAMPLE}.original_reads.sorted.bam"
+CHARACTERIZATION_BAM="$RAW/${SAMPLE}.original_reads.sorted.bam"
 
 echo "[$(date)] RelocaTE3 benchmark adapter"
 echo "  sample      : $SAMPLE"
@@ -195,6 +196,29 @@ if [[ ! -s "$GENOME_BAM" ]]; then
   exit 1
 fi
 
+# align-genome also restores and aligns only the original versions of junction
+# reads. RelocaTE2 feeds this small bwa-aln BAM into step 5 to reject apparent
+# junctions whose full reads map straight through both proposed breakpoints.
+FULLREAD_FILTER_ARGS=()
+HAS_JUNCTIONS=0
+for flank in "${FLANK_INPUTS[@]}"; do
+  if grep -m 1 -Eq '^@.*:(start|end):[53]([[:space:]]|$)' "$flank"; then
+    HAS_JUNCTIONS=1
+    break
+  fi
+done
+if [[ "$HAS_JUNCTIONS" -eq 1 ]]; then
+  if [[ ! -s "$JUNCTION_FULLREADS_BAM" || ! -s "${JUNCTION_FULLREADS_BAM}.bai" ]]; then
+    echo "ERROR: junction reads exist but their full-read BAM/index is missing:" >&2
+    echo "       $JUNCTION_FULLREADS_BAM" >&2
+    exit 1
+  fi
+  FULLREAD_FILTER_ARGS=(--fullreads-bam "$JUNCTION_FULLREADS_BAM")
+  echo "[$(date)] false-junction BAM: $JUNCTION_FULLREADS_BAM"
+else
+  echo "[$(date)] no junction reads; full-read false-junction filter is not needed"
+fi
+
 # Step 5: cluster junction/supporting reads and call non-reference insertions.
 echo "[$(date)] find-insertions"
 relocaTE3 find-insertions \
@@ -208,6 +232,7 @@ relocaTE3 find-insertions \
   --reference-ins "$REPEATMASKER" \
   --mismatch "$RT3_MISMATCH" \
   --min-mapq "$RT3_MIN_MAPQ" \
+  "${FULLREAD_FILTER_ARGS[@]}" \
   "${BOTH_JUNCTION_ARGS[@]}"
 
 # Absent means find-insertions failed; present-but-empty means it ran and
@@ -224,15 +249,15 @@ fi
 # alignment available in the benchmark). Atomic: write to a temp then rename.
 echo "[$(date)] building full-reads-to-genome BAM for characterize"
 minimap2 -a -x sr -t "$THREADS" "$REFERENCE" "$R1" "$R2" \
-  | samtools sort -@ "$THREADS" -o "${FULLREADS_BAM}.tmp"
-mv -f "${FULLREADS_BAM}.tmp" "$FULLREADS_BAM"
-samtools index "$FULLREADS_BAM"
+  | samtools sort -@ "$THREADS" -o "${CHARACTERIZATION_BAM}.tmp"
+mv -f "${CHARACTERIZATION_BAM}.tmp" "$CHARACTERIZATION_BAM"
+samtools index "$CHARACTERIZATION_BAM"
 
 # Step 7: characterize zygosity (hom/het/somatic) using our full-reads BAM.
-echo "[$(date)] characterize (step 7) using full-reads BAM: $FULLREADS_BAM"
+echo "[$(date)] characterize (step 7) using all-read BAM: $CHARACTERIZATION_BAM"
 relocaTE3 characterize \
   -s "$NONREF_TXT" \
-  -b "$FULLREADS_BAM" \
+  -b "$CHARACTERIZATION_BAM" \
   -g "$REFERENCE" \
   -o "$RAW/results" \
   --samtools samtools --bcftools "$RT3_BCFTOOLS"

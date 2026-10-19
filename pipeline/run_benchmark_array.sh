@@ -23,6 +23,9 @@ cd "$BASE_DIR"
 CONFIG="${CONFIG:-config/benchmark.toml}"
 DATASET_SELECTION="${DATASET_SELECTION:?submit via pipeline/submit_benchmark.sh}"
 PY=python3.12
+if [[ "$CONFIG" == "config/benchmark.checkpoint-213a0df.toml" ]]; then
+  python3.12 "callers/relocate3-checkpoint-213a0df/verify_source.py" "config/checkpoint-213a0df.source.json"
+fi
 
 echo "[$(date)] benchmark array task starting"
 echo "  host      : $(hostname)"
@@ -101,6 +104,7 @@ echo "[$(date)] scoring calls"
   --sample "$SAMPLE" \
   --caller "$CALLER" \
   --window "$MATCH_WINDOW" \
+  --coordinate-policy "${SCORING_COORDINATE_POLICY:-legacy}" \
   --outdir "$REPORT_DIR"
 
 echo "[$(date)] parsing resource usage"

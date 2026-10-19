@@ -50,6 +50,7 @@ fi
 # 2. Idempotency / run-dir safety.
 # ---------------------------------------------------------------------------
 if [[ -f "$OUTDIR/.run_complete" ]]; then
+  python3.12 "${ADAPTER_DIR:-callers/relocate2}/validate.py" --outdir "$OUTDIR"
   echo "[$(date)] RelocaTE2 run already complete for '$SAMPLE' ($OUTDIR/.run_complete); skipping."
   exit 0
 fi
@@ -69,7 +70,7 @@ mkdir -p "$OUTDIR"
 RAW="$OUTDIR/raw"
 FQ_DIR="$OUTDIR/fq"
 BAM_DIR="$OUTDIR/bam"
-mkdir -p "$RAW" "$FQ_DIR" "$BAM_DIR"
+mkdir -p "$RAW/repeat/results" "$FQ_DIR" "$BAM_DIR"
 
 # ---------------------------------------------------------------------------
 # 4. Put relocaTE2.py / bwa / samtools on PATH.
@@ -145,7 +146,7 @@ relocaTE2.py \
   --mismatch "$RT2_MISMATCH" \
   --cpu "$THREADS" \
   --aligner "$RT2_ALIGNER" \
-  --verbose 4
+  --verbose 4 2>&1 | tee "$OUTDIR/relocate2.driver.log"
 
 # ---------------------------------------------------------------------------
 # 8. Assert the characterized output exists and is non-empty.
@@ -160,6 +161,7 @@ fi
 # ---------------------------------------------------------------------------
 # 9. Sentinel.
 # ---------------------------------------------------------------------------
+python3.12 "$ADAPTER_DIR/validate.py" --outdir "$OUTDIR"
 date > "$OUTDIR/.run_complete"
 echo "[$(date)] RelocaTE2 run complete for '$SAMPLE'"
 echo "  characterized table: $CHAR_TXT"

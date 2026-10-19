@@ -24,7 +24,35 @@ def _load(path):
         return list(csv.DictReader(fh, delimiter="\t"))
 
 
-def score(truth_path, calls_path, sample: str, caller: str, window: int):
+def _truth_interval(event, policy):
+    """Return inclusive matching bounds without modifying the simulator anchor."""
+    anchor = int(event["position"])
+    if policy == "legacy":
+        return anchor, anchor
+    if policy != "tsd-interval":
+        raise ValueError(f"Unknown coordinate policy: {policy}")
+    value = event.get("tsd_length", "")
+    if value == "":
+        # Older truth exports lack a length column. Infer only literal DNA;
+        # unknown/sentinel TSDs cannot justify extending a matching interval.
+        sequence = event.get("tsd", "").upper()
+        length = len(sequence) if sequence and set(sequence) <= set("ACGTN") else 0
+    else:
+        length = int(value)
+    if length < 0 or length > anchor:
+        raise ValueError(f"Invalid TSD length {length} at anchor {anchor}")
+    return (anchor - length + 1, anchor) if length else (anchor, anchor)
+
+
+def _interval_distance(position, bounds):
+    low, high = bounds
+    return max(low - int(position), int(position) - high, 0)
+
+
+def score(truth_path, calls_path, sample: str, caller: str, window: int,
+          coordinate_policy: str = "legacy"):
+    if window < 0:
+        raise ValueError("Matching window must be nonnegative")
     truth = _load(truth_path)
     calls = _load(calls_path)
     by_chrom = defaultdict(list)
@@ -42,19 +70,28 @@ def score(truth_path, calls_path, sample: str, caller: str, window: int):
             "te_order": ev.get("te_order", ""),
             "te_superfamily": ev.get("te_superfamily", ""),
         }
+        bounds = _truth_interval(ev, coordinate_policy)
         cands = [
-            (abs(int(ev["position"]) - int(c["position"])), i, c)
+            (_interval_distance(c["position"], bounds),
+             abs(int(ev["position"]) - int(c["position"])), i, c)
             for i, c in by_chrom[ev["chrom"]]
             if i not in used
-            and abs(int(ev["position"]) - int(c["position"])) <= window
+            and _interval_distance(c["position"], bounds) <= window
             and _norm(ev["te_family"]) == _norm(c["te_family"])
         ]
+        if coordinate_policy != "legacy":
+            ev = {**ev, "coordinate_policy": coordinate_policy,
+                  "truth_match_start": bounds[0], "truth_match_end": bounds[1]}
         if not cands:
             matches.append({"event_id": ev["event_id"], "matched": "0", **ev})
             continue
-        dist, i, c = min(cands)
+        dist, anchor_dist, i, c = min(cands)
         used.add(i)
+        coordinate_metadata = (
+            {"anchor_distance_bp": anchor_dist} if coordinate_policy != "legacy" else {}
+        )
         matches.append({
+            **coordinate_metadata,
             "event_id": ev["event_id"], "matched": "1", "call_position": c["position"],
             "distance_bp": dist, "call_status": c["status"], "call_tsd": c["tsd"],
             "status_correct": str(int(_norm(ev["biological_class"]) == _norm(c["status"]))),
@@ -120,6 +157,9 @@ def main(argv=None) -> int:
     ap.add_argument("--caller", required=True)
     ap.add_argument("--window", type=int, default=10)
     ap.add_argument("--outdir", required=True, type=Path)
+    ap.add_argument("--coordinate-policy", choices=("legacy", "tsd-interval"), default="legacy",
+                    help="tsd-interval compares calls to [anchor-L+1, anchor]; "
+                         "legacy retains historical anchor-only matching")
     args = ap.parse_args(argv)
     if args.outdir.exists() and any(args.outdir.iterdir()):
         if (args.outdir / ".complete").exists():
@@ -131,7 +171,7 @@ def main(argv=None) -> int:
             raise FileExistsError(f"Refusing non-empty report dir: {args.outdir}")
     args.outdir.mkdir(parents=True, exist_ok=True)
     summary, matches, fps, precision_row = score(
-        args.truth, args.calls, args.sample, args.caller, args.window)
+        args.truth, args.calls, args.sample, args.caller, args.window, args.coordinate_policy)
     _write(args.outdir / "matches.tsv", matches)
     _write(args.outdir / "false_positive_calls.tsv", fps)
     _write(args.outdir / "correctness.tsv", summary)

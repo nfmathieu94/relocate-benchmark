@@ -109,6 +109,7 @@ def _globals(cfg: dict) -> str:
         f"TRUTH_ROOT={_sq(run.get('truth_root', 'truth'))}",
         f"THREADS={_sq(run['threads'])}",
         f"MATCH_WINDOW={_sq(cfg['scoring']['match_window'])}",
+        f"SCORING_COORDINATE_POLICY={_sq(cfg['scoring'].get('coordinate_policy', 'legacy'))}",
         f"DEFAULT_DATASET={_sq(_default_dataset(cfg))}",
     ]
     # Preserve the old one-table shell contract for external scripts that still
@@ -168,7 +169,8 @@ def _callers(cfg: dict) -> str:
 
 
 def _adapter_key(table: dict) -> str:
-    return Path(table.get("adapter", "")).name
+    # Private/versioned adapter directories still use the same caller contract.
+    return table.get("adapter_type") or Path(table.get("adapter", "")).name
 
 
 def _caller_env(cfg: dict, name: str) -> str:

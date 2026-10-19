@@ -1,0 +1,131 @@
+# relocate-benchmark master config.
+# Dataset paths point to simulated data generated in make_simulation_new
+# (outside this repo). Caller run outputs go under [run].work_root (gitignored).
+# ${section.key} references are expanded by lib/config.py.
+
+[benchmark]
+# Used when pipeline/submit_benchmark.sh is invoked without --dataset.
+# Use --dataset full to run every enabled table under [datasets].
+default_dataset = "mping"
+
+[datasets.mping]
+enabled      = true
+label        = "mPing only"
+panel_root   = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/somatic_mping_panel_chr1"
+reference    = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+te_library   = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/TE_lib/mping_superfam_header.fa"
+repeatmasker = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/repeatmasker/MSU_r7.fa.out"
+te_name      = "mPing"
+
+[datasets.ricetelib]
+enabled          = true
+label            = "riceTElib multi-TE"
+panel_root       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_benchmark"
+reference        = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+te_library       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_benchmark/selected_te_library.fa"
+repeatmasker     = "cache/reference_annotations/MSU_r7.full.repeatmasker.out"
+repeatmasker_gff = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa.RepeatMasker.out.gff"
+te_name          = "riceTElib"
+
+[datasets.ricetelib_divergence]
+enabled          = true
+label            = "riceTElib TE divergence"
+panel_root       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_div_benchmark"
+reference        = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+# Callers receive canonical representatives, never the inserted-variant audit
+# FASTAs stored inside each divergence scenario.
+te_library       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_div_benchmark/canonical_te_library.fa"
+repeatmasker     = "cache/reference_annotations/MSU_r7.full.repeatmasker.out"
+repeatmasker_gff = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa.RepeatMasker.out.gff"
+te_name          = "riceTElib"
+
+[run]
+work_root  = "runs"     # inside repo, gitignored
+report_root = "reports"
+truth_root  = "truth"
+threads     = 8
+
+[scoring]
+match_window = 10
+
+[callers.relocate2]
+enabled  = true
+adapter  = "callers/relocate2"
+aligner  = "blat"
+size     = 250
+mismatch = 2
+
+# RelocaTE3 aligner variants. Each is a caller keyed `relocate3-<te>-<genome>`
+# (filesystem-safe) with a display `label` "RelocaTE3-<te>/<genome>". All share
+# the callers/relocate3 adapter and differ only by te_aligner/genome_aligner.
+[callers.relocate3-minimap2-minimap2]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "UNK"   # infer each TSD's length and sequence from junction reads
+te_aligner     = "minimap2"
+genome_aligner = "minimap2"
+label          = "RelocaTE3-minimap2/minimap2"
+
+[callers.relocate3-bwa-bwa]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "UNK"
+te_aligner     = "bwa"
+genome_aligner = "bwa"
+label          = "RelocaTE3-bwa/bwa"
+
+# DISABLED 2026-07-22: RelocaTE3's Bowtie2Backend maps the TE library in
+# end-to-end mode (no --local), producing 0 soft-clipped alignments, so no
+# TE-junction flanks are extracted and 0 non-reference insertions are called on
+# every sample (vs ~300-450 for bwa/minimap2). Re-enable once RelocaTE3's
+# Re-enabled 2026-07-22: RT3 pinned at 60f7f09 fixes bowtie2 TE mapping to use
+# --local (soft-clips junction reads). See docs/2026-07-22-bowtie2-index-race.md
+# and RT3 todo/bowtie2-te-mapping-needs-local.md.
+[callers.relocate3-bowtie2-bwa]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "UNK"
+te_aligner     = "bowtie2"
+genome_aligner = "bwa"
+label          = "RelocaTE3-bowtie2/bwa"
+
+# Opt-in (needs `blat` on PATH; not pinned -- bioconda blat conflicts with matplotlib).
+[callers.relocate3-blat-bwa]
+enabled        = true
+adapter        = "callers/relocate3"
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "UNK"
+te_aligner     = "blat"
+genome_aligner = "bwa"
+label          = "RelocaTE3-blat/bwa"
+
+# True RelocaTE2 parity: BLAT TE-search + bwa aln flank->genome (samse/sampe),
+# exactly RelocaTE2's aligner choice. bwa aln (modern bwa 0.7.19) has no seed
+# floor, so it places the short junction flanks bwa mem/minimap2 drop.
+[callers.relocate3-blat-bwaaln]
+enabled        = true
+adapter        = "callers/relocate3"
+# Frozen worktree pinned at RelocaTE3 8c44dce (branch fix/chr3-missed-detections)
+# so this multi-day run cannot be perturbed by work continuing in the dev
+# checkout. The adapter executes whatever tree `repo` points at.
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_frozen_chr3fixes"
+tsd            = "UNK"
+te_aligner     = "blat"
+genome_aligner = "bwaaln"
+label          = "RelocaTE3-blat/bwa-aln"
+
+[callers.relocate3-blat-bwaaln-mainonly]
+enabled        = true
+adapter        = "callers/relocate3"
+# Frozen worktree pinned at RelocaTE3 8c44dce (branch fix/chr3-missed-detections)
+# so this multi-day run cannot be perturbed by work continuing in the dev
+# checkout. The adapter executes whatever tree `repo` points at.
+repo           = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd            = "UNK"
+te_aligner     = "blat"
+genome_aligner = "bwaaln"
+label          = "RelocaTE3-blat/bwa-aln (main ccb27f6)"
+
