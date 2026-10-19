@@ -22,6 +22,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +30,7 @@ from pathlib import Path
 # Source that produced the cached TE-search BAMs: BLAT invocation and
 # parameters, query chunking, PSL->SAM conversion, and read-file naming.
 GUARDED_FILES = ("src/RelocaTE3/aligners.py", "src/RelocaTE3/ReadLibrary.py")
+_FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 class CacheError(RuntimeError):
@@ -52,15 +54,29 @@ def cached_files(raw: Path, sample: str) -> list[Path]:
     return [raw / name for name in names] + [raw / f"{name}.bai" for name in names]
 
 
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True)
+
+
 def check_source(repo: Path, rev: str) -> None:
-    """Fail unless the guarded files in ``repo``'s working tree equal ``rev``."""
-    command = ["git", "-C", str(repo), "diff", "--quiet", rev, "--", *GUARDED_FILES]
-    result = subprocess.run(command, capture_output=True, text=True)
+    """Fail unless the guarded files in ``repo``'s working tree equal ``rev``.
+
+    ``repo`` may be any directory inside the RelocaTE3 checkout; guarded paths
+    are anchored at the top level so a subdirectory cannot silently match nothing.
+    """
+    top = _git(repo, "rev-parse", "--show-toplevel")
+    if top.returncode != 0:
+        raise CacheError(f"not a git work tree: {repo}: {top.stderr.strip()}")
+    toplevel = Path(top.stdout.strip())
+    for path in GUARDED_FILES:
+        if _git(repo, "cat-file", "-e", f"{rev}:{path}").returncode != 0:
+            raise CacheError(f"guarded file {path} not found at cache revision {rev}")
+        if not (toplevel / path).is_file():
+            raise CacheError(f"guarded file {path} missing from working tree {toplevel}")
+    pathspecs = [f":(top){path}" for path in GUARDED_FILES]
+    result = _git(repo, "diff", "--quiet", rev, "--", *pathspecs)
     if result.returncode == 1:
-        changed = subprocess.run(
-            ["git", "-C", str(repo), "diff", "--name-only", rev, "--", *GUARDED_FILES],
-            capture_output=True, text=True,
-        ).stdout.split()
+        changed = _git(repo, "diff", "--name-only", rev, "--", *pathspecs).stdout.split()
         raise CacheError(
             f"TE-search source differs from cache revision {rev}: "
             f"{', '.join(changed)}; the cached BAMs are stale, run the full tier"
@@ -73,6 +89,11 @@ def register(run_root, source_caller, source_rev, libraries, out) -> dict:
     out = Path(out)
     if out.exists():
         raise CacheError(f"refusing to overwrite existing manifest: {out}")
+    if not _FULL_SHA.fullmatch(source_rev):
+        raise CacheError(
+            f"source_rev must be a full 40-hex commit SHA, not {source_rev!r}; "
+            "a branch, tag or short SHA could later resolve to another commit"
+        )
     manifest = {
         "source_rev": source_rev,
         "run_root": str(run_root),
@@ -105,6 +126,9 @@ def check(manifest, repo, dataset, sample, te_library) -> Path:
     missing = [str(path) for path in cached_files(raw, sample) if not path.is_file()]
     if missing:
         raise CacheError("cached file(s) missing: " + ", ".join(missing))
+    empty = [str(path) for path in cached_files(raw, sample) if path.stat().st_size == 0]
+    if empty:
+        raise CacheError("cached file(s) empty: " + ", ".join(empty))
     return raw
 
 

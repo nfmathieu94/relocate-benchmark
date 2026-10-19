@@ -130,6 +130,34 @@ class ReplayCacheTest(unittest.TestCase):
         with self.assertRaisesRegex(check_cache.CacheError, ".run_complete"):
             self.check()
 
+    def test_register_rejects_non_sha_rev(self):
+        for rev in ("HEAD", "main", self.rev[:7], self.rev.upper() + "0"):
+            with self.subTest(rev=rev):
+                with self.assertRaisesRegex(check_cache.CacheError, "40-hex"):
+                    check_cache.register(
+                        run_root=self.root / "runs", source_caller="src-caller",
+                        source_rev=rev, libraries={"ds": self.library},
+                        out=self.root / f"other-{len(rev)}.json",
+                    )
+
+    def test_subdirectory_repo_unchanged_passes(self):
+        self.assertEqual(self.check(repo=self.repo / "src"), self.sample_dir / "raw")
+
+    def test_subdirectory_repo_edit_fails(self):
+        (self.repo / "src/RelocaTE3/aligners.py").write_text("BLAT = 2\n")
+        with self.assertRaisesRegex(check_cache.CacheError, "aligners.py"):
+            self.check(repo=self.repo / "src")
+
+    def test_guarded_file_missing_from_working_tree_fails(self):
+        (self.repo / "src/RelocaTE3/aligners.py").unlink()
+        with self.assertRaisesRegex(check_cache.CacheError, "aligners.py"):
+            self.check(repo=self.repo / "src")
+
+    def test_empty_cached_file_fails(self):
+        (self.sample_dir / "raw" / "s1.left.bam.bai").write_bytes(b"")
+        with self.assertRaisesRegex(check_cache.CacheError, "s1.left.bam.bai"):
+            self.check()
+
     def test_cli_prints_raw_dir_or_exits_2(self):
         base = [
             sys.executable, str(SCRIPT), "check", "--manifest", str(self.manifest),
