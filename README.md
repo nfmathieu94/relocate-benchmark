@@ -137,6 +137,24 @@ bash pipeline/submit_benchmark.sh --caller relocate3 --coverage 5,15   # combine
 
 Add `--no-aggregate` to skip the dependent aggregation job.
 
+## Fast development tier
+
+For RelocaTE3 changes downstream of the TE search, `config/benchmark.dev.toml`
+replays trim through characterize from cached checkpoint BAMs and copies
+RelocaTE2's frozen calls, so a run takes hours instead of days. Outputs go to
+`runs/dev/` and `reports/dev/`.
+
+```bash
+CONFIG=config/benchmark.dev.toml bash pipeline/submit_benchmark.sh --dataset full
+CONFIG=config/benchmark.dev.toml bash pipeline/submit_benchmark.sh \
+  --dataset full --coverage 5,15 --replicate 1 --rt3-repo ../../RelocaTE3_jason/<worktree>
+```
+
+Accuracy only: `resources.tsv` in `reports/dev` measures replays and file
+copies, not real runs. Changing the TE search (or `aligners.py` /
+`ReadLibrary.py`) makes replay refuse to run: use the full tier. See
+[docs/2026-10-19-dev-replay-tier.md](docs/2026-10-19-dev-replay-tier.md).
+
 ## Updating RelocaTE3 between runs
 
 RelocaTE3 is installed *editable* in its pixi env, so code edits in its dev repo
