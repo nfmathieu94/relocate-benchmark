@@ -243,5 +243,74 @@ class ReplayCacheTest(unittest.TestCase):
         self.assertIn("changed after the cache was built", result.stderr)
 
 
+class TreeIdentityTest(unittest.TestCase):
+    """identity: which RelocaTE3 tree a dev-tier result was produced from."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.repo, self.rev = make_rt3_repo(self.root)
+        self.base = check_cache.tree_identity(self.repo)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_identity_starts_with_head_sha(self):
+        head, digest = self.base.split(" ")
+        self.assertEqual(head, self.rev)
+        self.assertRegex(digest, r"^[0-9a-f]{64}$")
+
+    def test_identity_is_stable_for_unchanged_tree(self):
+        self.assertEqual(check_cache.tree_identity(self.repo), self.base)
+
+    def test_identity_is_same_from_subdirectory(self):
+        self.assertEqual(check_cache.tree_identity(self.repo / "src" / "RelocaTE3"),
+                         self.base)
+
+    def test_uncommitted_src_edit_changes_identity(self):
+        (self.repo / "src/RelocaTE3/librelocate.py").write_text("TRIM = 2\n")
+        self.assertNotEqual(check_cache.tree_identity(self.repo), self.base)
+
+    def test_untracked_src_file_changes_identity(self):
+        (self.repo / "src/RelocaTE3/new_module.py").write_text("X = 1\n")
+        first = check_cache.tree_identity(self.repo)
+        self.assertNotEqual(first, self.base)
+        (self.repo / "src/RelocaTE3/new_module.py").write_text("X = 2\n")
+        self.assertNotEqual(check_cache.tree_identity(self.repo), first)
+
+    def test_new_commit_changes_identity(self):
+        (self.repo / "src/RelocaTE3/librelocate.py").write_text("TRIM = 2\n")
+        subprocess.run([*GIT, "-C", str(self.repo), "commit", "-qam", "edit"], check=True)
+        identity = check_cache.tree_identity(self.repo)
+        self.assertNotEqual(identity.split()[0], self.rev)
+        self.assertNotEqual(identity, self.base)
+
+    def test_changes_outside_src_are_ignored(self):
+        (self.repo / "README.md").write_text("notes\n")
+        (self.repo / "tests").mkdir()
+        (self.repo / "tests" / "test_x.py").write_text("pass\n")
+        self.assertEqual(check_cache.tree_identity(self.repo), self.base)
+
+    def test_bytecode_caches_are_ignored(self):
+        cache = self.repo / "src/RelocaTE3/__pycache__"
+        cache.mkdir()
+        (cache / "librelocate.cpython-312.pyc").write_bytes(b"\x00pyc")
+        self.assertEqual(check_cache.tree_identity(self.repo), self.base)
+
+    def test_cli_prints_identity(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "identity", "--rt3-repo", str(self.repo)],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, self.base + "\n")
+
+    def test_cli_identity_of_non_repo_exits_2(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "identity", "--rt3-repo", str(self.root)],
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("not a git work tree", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -260,11 +260,64 @@ class ReplayAdapterTest(unittest.TestCase):
     def test_completed_outdir_skips_guard(self):
         self.outdir.mkdir(parents=True)
         (self.outdir / ".run_complete").write_text("done\n")
+        (self.outdir / "replay_source.txt").write_text(
+            check_cache.tree_identity(self.repo) + "\n")
         self.env["RT3_REPLAY_MANIFEST"] = str(self.root / "no-such-manifest.json")
         result = self.run_adapter()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("already complete", result.stdout)
         self.assertFalse(self.log.exists())
+
+    def outdir_snapshot(self):
+        return sorted((str(p), p.stat().st_mtime_ns, p.stat().st_size)
+                      for p in self.outdir.rglob("*") if not p.is_symlink())
+
+    def test_replay_records_source_tree_identity(self):
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.outdir / "replay_source.txt").read_text().strip(),
+                         check_cache.tree_identity(self.repo))
+
+    def test_full_tier_records_no_replay_source(self):
+        del self.env["RT3_REPLAY_MANIFEST"]
+        result = self.run_adapter("callers/relocate3/run.sh")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse((self.outdir / "replay_source.txt").exists())
+
+    def test_rerun_with_same_tree_skips(self):
+        first = self.run_adapter()
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        n_calls = len(self.calls())
+        second = self.run_adapter()
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertIn("already complete", second.stdout)
+        self.assertEqual(len(self.calls()), n_calls)
+
+    def test_rerun_after_src_edit_refuses_and_keeps_outputs(self):
+        first = self.run_adapter()
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+        old = check_cache.tree_identity(self.repo)
+        before = self.outdir_snapshot()
+        n_calls = len(self.calls())
+        # librelocate.py is not a guarded file: the cache check alone would pass.
+        (self.repo / "src/RelocaTE3/librelocate.py").write_text("TRIM = 2\n")
+        new = check_cache.tree_identity(self.repo)
+        second = self.run_adapter()
+        self.assertEqual(second.returncode, 1, second.stdout + second.stderr)
+        self.assertIn(
+            f"ERROR: {self.outdir} holds replay results from a different RelocaTE3 "
+            f"tree ({old}) than {self.repo} ({new}); move runs/dev and reports/dev "
+            "aside (e.g. runs/dev-<label>) before resubmitting.", second.stderr)
+        self.assertEqual(self.outdir_snapshot(), before)
+        self.assertEqual(len(self.calls()), n_calls)
+
+    def test_completed_replay_without_recorded_source_refuses(self):
+        self.outdir.mkdir(parents=True)
+        (self.outdir / ".run_complete").write_text("done\n")
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("holds replay results from a different RelocaTE3 tree",
+                      result.stderr)
 
     def test_replay_without_dataset_fails_before_output(self):
         del self.env["DATASET"]

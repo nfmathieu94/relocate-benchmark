@@ -44,7 +44,26 @@ CONFIG=config/benchmark.dev.toml bash pipeline/submit_benchmark.sh \
 
 # Acceptance gate (after aggregation; needs a complete 72-sample dev run)
 python3.12 scripts/compare_replay_gate.py --out reports/dev/replay_gate.tsv
+
+# Before testing a different RelocaTE3 tree: move the previous dev run aside
+mv runs/dev runs/dev-<label>
+mv reports/dev reports/dev-<label>
 ```
+
+## Reruns and stale results
+
+Each replay writes `runs/dev/<ds>/relocate3-replay/<sample>/replay_source.txt`:
+`<HEAD sha> <sha256>` from `check_cache.py identity`, where the digest covers
+`git diff HEAD -- src` plus every untracked file under `src/` (bytecode caches
+ignored). A completed replay is skipped only when the current `--rt3-repo` tree
+has the same identity. Any other tree (new commit, uncommitted edit, new file,
+different checkout) exits 1 with "holds replay results from a different
+RelocaTE3 tree" and leaves the old outputs untouched.
+
+So move `runs/dev` and `reports/dev` aside between dev runs of different trees.
+The `relocate2-frozen` copies do not depend on RelocaTE3; they may be kept
+(move only `runs/dev/*/relocate3-replay`) or moved with the rest. The full tier
+is unchanged (no identity check).
 
 ## When replay is refused
 

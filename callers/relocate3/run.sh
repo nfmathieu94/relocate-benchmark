@@ -86,17 +86,37 @@ done
 #     registered full-tier run's TE-search BAMs and all-read genotyping BAM
 #     instead of rerunning BLAT and minimap2. The guard refuses when RT3_REPO's
 #     TE-search source or the TE library no longer matches the cache.
+#     A completed replay is reused only for the same RelocaTE3 tree: its
+#     identity (HEAD + uncommitted/untracked src/ changes) is recorded in
+#     replay_source.txt, and a rerun against any other tree is refused rather
+#     than silently re-scoring the old calls.
 # ---------------------------------------------------------------------------
 REPLAY_RAW=""
-if [[ -n "${RT3_REPLAY_MANIFEST:-}" && ! -f "$OUTDIR/.run_complete" ]]; then
-  REPLAY_RAW="$(python3.12 callers/relocate3-replay/check_cache.py check \
-    --manifest "$RT3_REPLAY_MANIFEST" \
-    --rt3-repo "$RT3_REPO" \
-    --dataset "${DATASET:?DATASET must be set in replay mode}" \
-    --sample "$SAMPLE" \
-    --te-library "$TE_LIBRARY" \
-    --te-aligner "$RT3_TE_ALIGNER" \
-    --input "$R1" --input "$R2" --input "$REFERENCE")"
+REPLAY_SOURCE=""
+if [[ -n "${RT3_REPLAY_MANIFEST:-}" ]]; then
+  if [[ -f "$OUTDIR/.run_complete" ]]; then
+    REPLAY_SOURCE="$(python3.12 callers/relocate3-replay/check_cache.py identity \
+      --rt3-repo "$RT3_REPO")"
+    RECORDED_SOURCE="none recorded"
+    if [[ -f "$OUTDIR/replay_source.txt" ]]; then
+      RECORDED_SOURCE="$(<"$OUTDIR/replay_source.txt")"
+    fi
+    if [[ "$RECORDED_SOURCE" != "$REPLAY_SOURCE" ]]; then
+      echo "ERROR: $OUTDIR holds replay results from a different RelocaTE3 tree ($RECORDED_SOURCE) than $RT3_REPO ($REPLAY_SOURCE); move runs/dev and reports/dev aside (e.g. runs/dev-<label>) before resubmitting." >&2
+      exit 1
+    fi
+  else
+    REPLAY_RAW="$(python3.12 callers/relocate3-replay/check_cache.py check \
+      --manifest "$RT3_REPLAY_MANIFEST" \
+      --rt3-repo "$RT3_REPO" \
+      --dataset "${DATASET:?DATASET must be set in replay mode}" \
+      --sample "$SAMPLE" \
+      --te-library "$TE_LIBRARY" \
+      --te-aligner "$RT3_TE_ALIGNER" \
+      --input "$R1" --input "$R2" --input "$REFERENCE")"
+    REPLAY_SOURCE="$(python3.12 callers/relocate3-replay/check_cache.py identity \
+      --rt3-repo "$RT3_REPO")"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -112,6 +132,9 @@ if [[ -d "$OUTDIR" ]] && [[ -n "$(ls -A "$OUTDIR" 2>/dev/null)" ]]; then
   exit 1
 fi
 mkdir -p "$OUTDIR"
+if [[ -n "$REPLAY_RAW" ]]; then
+  printf '%s\n' "$REPLAY_SOURCE" > "$OUTDIR/replay_source.txt"
+fi
 
 # ---------------------------------------------------------------------------
 # 3. Raw output directory used as RelocaTE3 --outdir / -o.

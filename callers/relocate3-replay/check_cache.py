@@ -16,6 +16,12 @@ whose modification time is newer than the source sample's ``.run_complete`` is
 refused. A file rewritten with identical content is refused too; a file changed
 while preserving an old mtime (``cp -p``, ``touch -d``) is not detected.
 
+``identity`` prints ``<HEAD sha> <sha256>`` for a RelocaTE3 tree, where the
+digest covers ``git diff HEAD`` under ``src/`` plus every untracked file there
+(path and content; ``__pycache__`` and ``*.pyc`` are ignored). The RelocaTE3
+adapter records it in ``replay_source.txt`` so a completed dev-tier result is
+never silently reused for a different tree.
+
 Known blind spot: the mapping half of ``librelocate.py`` (``identify_TE_reads``)
 is not hashed, since the same file holds the trimming code under development.
 Changes to TE search must be measured with the full tier.
@@ -89,6 +95,41 @@ def check_source(repo: Path, rev: str) -> None:
         )
     if result.returncode != 0:
         raise CacheError(f"cannot compare {repo} with {rev}: {result.stderr.strip()}")
+
+
+def _is_bytecode(path: str) -> bool:
+    return "__pycache__" in path.split("/") or path.endswith((".pyc", ".pyo"))
+
+
+def tree_identity(repo) -> str:
+    """Return ``"<HEAD sha> <sha256>"`` identifying ``repo``'s ``src/`` tree.
+
+    The digest covers uncommitted changes to tracked files (``git diff HEAD``)
+    and the path and content of each untracked, non-ignored file under ``src/``.
+    Bytecode caches are skipped so importing the package does not change it.
+    """
+    top = _git(Path(repo), "rev-parse", "--show-toplevel")
+    if top.returncode != 0:
+        raise CacheError(f"not a git work tree: {repo}: {top.stderr.strip()}")
+    toplevel = Path(top.stdout.strip())
+
+    def git_bytes(*args: str) -> bytes:
+        result = subprocess.run(["git", "-C", str(toplevel), *args], capture_output=True)
+        if result.returncode != 0:
+            raise CacheError(f"git {args[0]} failed in {toplevel}: "
+                             f"{result.stderr.decode(errors='replace').strip()}")
+        return result.stdout
+
+    head = git_bytes("rev-parse", "HEAD").decode().strip()
+    digest = hashlib.sha256()
+    digest.update(git_bytes("diff", "--no-ext-diff", "--no-textconv", "--binary",
+                            "HEAD", "--", ":(top)src"))
+    untracked = git_bytes("ls-files", "--others", "--exclude-standard", "-z",
+                          "--", ":(top)src").decode().split("\0")
+    for path in sorted(p for p in untracked if p and not _is_bytecode(p)):
+        digest.update(b"\0untracked\0" + path.encode() + b"\0")
+        digest.update((toplevel / path).read_bytes())
+    return f"{head} {digest.hexdigest()}"
 
 
 def register(run_root, source_caller, source_rev, libraries, out, te_aligner) -> dict:
@@ -184,12 +225,16 @@ def main(argv=None) -> int:
                      help="TE aligner the replay caller is configured with")
     chk.add_argument("--input", action="append", default=[], metavar="FILE",
                      help="input that must predate the cache (mtime check; repeatable)")
+    ident = sub.add_parser("identity", help="print '<HEAD sha> <sha256>' of RT3 src/")
+    ident.add_argument("--rt3-repo", required=True)
     args = parser.parse_args(argv)
     try:
         if args.mode == "register":
             register(args.run_root, args.source_caller, args.source_rev,
                      dict(args.te_library), args.out, args.te_aligner)
             print(f"registered replay cache: {args.out}", file=sys.stderr)
+        elif args.mode == "identity":
+            print(tree_identity(args.rt3_repo))
         else:
             print(check(args.manifest, args.rt3_repo, args.dataset, args.sample,
                         args.te_library, args.te_aligner, args.input))
