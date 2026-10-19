@@ -542,12 +542,25 @@ class DevTierEnvTest(unittest.TestCase):
 
     def test_array_allowlist_exports_every_mapped_variable(self):
         text = (REPO_ROOT / "pipeline" / "run_benchmark_array.sh").read_text()
-        match = re.search(r"for variable in (.*?); do", text, re.S)
+        match = re.search(r"^CALLER_VARIABLES=\((.*?)\)", text, re.S | re.M)
+        self.assertIsNotNone(match, "CALLER_VARIABLES array not found")
         allowlisted = set(match.group(1).replace("\\", " ").split())
         mapped = {
             env for table in config_env.ADAPTER_ENV_MAP.values() for env in table.values()
         }
         self.assertEqual(mapped - allowlisted, set())
+        # config_env.py reads the override, so it must survive the clearing.
+        self.assertNotIn("RT3_REPO_OVERRIDE", allowlisted)
+
+    def test_array_clears_inherited_caller_variables_before_caller_env(self):
+        # --export=ALL would otherwise leak a stray submitting-shell value
+        # (e.g. RT3_REPLAY_MANIFEST) into callers whose config does not set it.
+        text = (REPO_ROOT / "pipeline" / "run_benchmark_array.sh").read_text()
+        unset_at = text.find('unset "${CALLER_VARIABLES[@]}"')
+        eval_at = text.find("caller-env \"$CALLER\"")
+        self.assertNotEqual(unset_at, -1, "caller variables are never unset")
+        self.assertNotEqual(eval_at, -1, "caller-env eval line not found")
+        self.assertLess(unset_at, eval_at)
 
 
 if __name__ == "__main__":

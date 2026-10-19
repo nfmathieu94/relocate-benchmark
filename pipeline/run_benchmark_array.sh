@@ -71,15 +71,21 @@ mkdir -p "$RES_DIR" logs
 export DATASET SAMPLE R1 R2 OUTDIR THREADS
 export REFERENCE TE_LIBRARY REPEATMASKER TE_NAME
 
+# Allowlist of caller-env variables. A caller key added to ADAPTER_ENV_MAP in
+# config_env.py must ALSO be listed here, or it is silently dropped and the
+# adapter falls back to its default -- which is how the `-strict` variant first
+# ran without its own flag. The list is cleared before caller-env runs:
+# submit_benchmark.sh uses --export=ALL, so a value left in the submitting shell
+# (e.g. a stray RT3_REPLAY_MANIFEST, which turns a full run into a replay) would
+# otherwise reach callers whose config does not set it. RT3_REPO_OVERRIDE is
+# deliberately NOT listed: config_env.py reads it.
+CALLER_VARIABLES=(RT3_REPO TSD_PATTERN RT3_TE_ALIGNER RT3_GENOME_ALIGNER
+                  RT3_REQUIRE_BOTH_JUNCTIONS RT3_REPLAY_MANIFEST
+                  RT2_ALIGNER RT2_SIZE RT2_MISMATCH
+                  FROZEN_SOURCE_ROOT FROZEN_SOURCE_CALLER)
+unset "${CALLER_VARIABLES[@]}"
 eval "$("$PY" pipeline/config_env.py --config "$CONFIG" caller-env "$CALLER")"
-# Allowlist of caller-env variables to export. A caller key added to
-# ADAPTER_ENV_MAP in config_env.py must ALSO be listed here, or it is silently
-# dropped and the adapter falls back to its default -- which is how the
-# `-strict` variant first ran without its own flag.
-for variable in RT3_REPO TSD_PATTERN RT3_TE_ALIGNER RT3_GENOME_ALIGNER \
-                RT3_REQUIRE_BOTH_JUNCTIONS RT3_REPLAY_MANIFEST \
-                RT2_ALIGNER RT2_SIZE RT2_MISMATCH \
-                FROZEN_SOURCE_ROOT FROZEN_SOURCE_CALLER; do
+for variable in "${CALLER_VARIABLES[@]}"; do
   if [[ -n "${!variable+x}" ]]; then
     export "${variable?}"
   fi
