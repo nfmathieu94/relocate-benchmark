@@ -112,6 +112,20 @@ class GateCliTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
         self.assertIn("different", out.read_text())
 
+    def test_exit_one_when_nothing_to_compare(self):
+        proc, _ = self.run_cli()
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("no checkpoint calls files found", proc.stderr)
+
+    def test_exit_one_when_precision_tables_are_absent(self):
+        # Calls match, but a wrong --source-reports path must not pass the gate.
+        self.build([200, 100])
+        import shutil
+        shutil.rmtree(self.root / "reports/ck")
+        proc, _ = self.run_cli()
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("no checkpoint precision files found", proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

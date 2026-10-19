@@ -3,7 +3,9 @@
 
 Compares each dev caller's normalized calls (multiset, caller column excluded)
 and per-sample precision tables with its checkpoint counterpart. Writes a TSV
-and exits 1 on any difference or missing sample. Run from the benchmark root:
+and exits 1 on any difference or missing sample, or when no checkpoint calls or
+precision files are found (an empty comparison proves nothing). Run from the
+benchmark root:
 
   python3.12 scripts/compare_replay_gate.py --out reports/dev/replay_gate.tsv
 """
@@ -92,6 +94,15 @@ def main(argv=None) -> int:
     summary = Counter((r["kind"], r["caller"], r["status"]) for r in rows)
     for (kind, caller, status), n in sorted(summary.items()):
         print(f"{kind}\t{caller}\t{status}\t{n}")
+    empty = False
+    for kind, root in (("calls", args.source_runs), ("precision", args.source_reports)):
+        if not any(r["kind"] == kind for r in rows):
+            print(f"ERROR: no checkpoint {kind} files found under {root} for "
+                  f"{', '.join(sorted(set(DEFAULT_PAIRS.values())))}; "
+                  "nothing was compared (wrong path?)", file=sys.stderr)
+            empty = True
+    if empty:
+        return 1
     return 0 if all(r["status"] == "identical" for r in rows) else 1
 
 
