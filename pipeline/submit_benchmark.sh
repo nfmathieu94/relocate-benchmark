@@ -22,6 +22,7 @@ FILTER_SAMPLE=""
 FILTER_REPLICATE=""
 NO_AGGREGATE=0
 SHOW_HELP=0
+RT3_REPO_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
     --divergence) FILTER_DIVERGENCE="$2"; shift 2 ;;
     --sample)     FILTER_SAMPLE="$2";     shift 2 ;;
     --replicate)  FILTER_REPLICATE="$2";  shift 2 ;;
+    --rt3-repo)   RT3_REPO_OVERRIDE="$2"; shift 2 ;;
     --no-aggregate) NO_AGGREGATE=1; shift ;;
     -h|--help) SHOW_HELP=1; shift ;;
     *) echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
@@ -48,6 +50,7 @@ Options:
   --divergence <list>  TE divergence percentage(s), comma-separated
   --sample <list>      Sample name(s), comma-separated
   --replicate <list>   Replicate value(s), comma-separated
+  --rt3-repo <path>    Run RelocaTE3 callers from this checkout (e.g. a worktree)
   --no-aggregate       Do not submit the dependent aggregation job
   -h, --help           Show this help
 
@@ -60,6 +63,17 @@ EOF
 if (( SHOW_HELP == 1 )); then
   print_help
   exit 0
+fi
+
+if [[ -n "$RT3_REPO_OVERRIDE" ]]; then
+  if [[ ! -d "$RT3_REPO_OVERRIDE/src/RelocaTE3" || ! -f "$RT3_REPO_OVERRIDE/pixi.toml" ]]; then
+    echo "ERROR: --rt3-repo must be a RelocaTE3 checkout (src/RelocaTE3 and pixi.toml): $RT3_REPO_OVERRIDE" >&2
+    exit 1
+  fi
+  RT3_REPO_OVERRIDE="$(cd "$RT3_REPO_OVERRIDE" && pwd)"
+  # --export=ALL carries this to the array; config_env.py applies it.
+  export RT3_REPO_OVERRIDE
+  echo "[$(date)] RelocaTE3 callers will use: $RT3_REPO_OVERRIDE"
 fi
 
 # Resolve an omitted selection to its concrete configured default so array and
