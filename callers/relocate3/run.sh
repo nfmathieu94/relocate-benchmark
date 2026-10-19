@@ -94,7 +94,9 @@ if [[ -n "${RT3_REPLAY_MANIFEST:-}" && ! -f "$OUTDIR/.run_complete" ]]; then
     --rt3-repo "$RT3_REPO" \
     --dataset "${DATASET:?DATASET must be set in replay mode}" \
     --sample "$SAMPLE" \
-    --te-library "$TE_LIBRARY")"
+    --te-library "$TE_LIBRARY" \
+    --te-aligner "$RT3_TE_ALIGNER" \
+    --input "$R1" --input "$R2" --input "$REFERENCE")"
 fi
 
 # ---------------------------------------------------------------------------
@@ -126,7 +128,25 @@ source "$ADAPTER_DIR/env.sh"
 if [[ -n "$REPLAY_RAW" ]]; then
   # Test the tree in RT3_REPO itself, whichever RelocaTE3 the env installed.
   export PYTHONPATH="$RT3_REPO/src${PYTHONPATH:+:$PYTHONPATH}"
-  python3 -c 'import os,pathlib,RelocaTE3; root=pathlib.Path(os.environ["RT3_REPO"]).resolve(); p=pathlib.Path(RelocaTE3.__file__).resolve(); print("Replay source:",p); assert p.is_relative_to(root/"src"), p'
+  # Check with the interpreter relocaTE3 itself runs under (its shebang), so a
+  # different python3 on PATH cannot pass the check for the wrong environment.
+  RT3_PYTHON="python3"
+  _rt3_shebang="$(LC_ALL=C head -n 1 "$(command -v relocaTE3)" 2>/dev/null | tr -d '\0' || true)"
+  if [[ "$_rt3_shebang" =~ ^\#\!(/[^[:space:]]+)[[:space:]]*$ && -x "${BASH_REMATCH[1]}" ]]; then
+    RT3_PYTHON="${BASH_REMATCH[1]}"
+  fi
+  "$RT3_PYTHON" - <<'PY'
+import os, pathlib, sys
+import RelocaTE3
+root = (pathlib.Path(os.environ["RT3_REPO"]) / "src").resolve()
+source = getattr(RelocaTE3, "__file__", None)
+if not source:
+    sys.exit(f"ERROR: RelocaTE3 imported as a namespace package, not under {root}")
+path = pathlib.Path(source).resolve()
+print("Replay source:", path)
+if not path.is_relative_to(root):
+    sys.exit(f"ERROR: RelocaTE3 imported from {path}, not under {root}")
+PY
 fi
 
 # ---------------------------------------------------------------------------
@@ -156,7 +176,7 @@ echo "  R1          : $R1"
 echo "  R2          : $R2"
 echo "  outdir      : $OUTDIR (raw -> $RAW)"
 echo "  threads     : $THREADS"
-echo "  te-aligner  : $RT3_TE_ALIGNER"
+echo "  te-aligner  : $RT3_TE_ALIGNER${REPLAY_RAW:+ (cached)}"
 echo "  gen-aligner : $RT3_GENOME_ALIGNER"
 echo "  mismatch    : $RT3_MISMATCH"
 echo "  match/trim  : ${RT3_MIN_MATCH}/${RT3_MIN_TRIMMED}"

@@ -1,6 +1,7 @@
 """Tests for the RelocaTE3 replay-cache guard (dev tier)."""
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -61,7 +62,13 @@ class ReplayCacheTest(unittest.TestCase):
             source_rev=self.rev,
             libraries={"ds": self.library},
             out=self.manifest,
+            te_aligner="blat",
         )
+        # Inputs that predate the cache, set explicitly rather than by write order.
+        self.read1 = self.root / "R1.fq"
+        self.read1.write_text("@r\nA\n+\nI\n")
+        os.utime(self.sample_dir / ".run_complete", (2_000_000_000, 2_000_000_000))
+        os.utime(self.read1, (1_000_000_000, 1_000_000_000))
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -69,7 +76,8 @@ class ReplayCacheTest(unittest.TestCase):
     def check(self, **overrides):
         kwargs = dict(
             manifest=self.manifest, repo=self.repo, dataset="ds",
-            sample="s1", te_library=self.library,
+            sample="s1", te_library=self.library, te_aligner="blat",
+            inputs=(self.read1,),
         )
         kwargs.update(overrides)
         return check_cache.check(**kwargs)
@@ -80,12 +88,40 @@ class ReplayCacheTest(unittest.TestCase):
         self.assertEqual(data["source_caller"], "src-caller")
         self.assertEqual(data["te_library_sha256"]["ds"], check_cache.sha256(self.library))
         self.assertEqual(data["guarded_files"], list(check_cache.GUARDED_FILES))
+        self.assertEqual(data["te_aligner"], "blat")
+
+    def test_te_aligner_match_passes(self):
+        self.assertEqual(self.check(te_aligner="blat"), self.sample_dir / "raw")
+
+    def test_te_aligner_mismatch_fails(self):
+        with self.assertRaisesRegex(
+            check_cache.CacheError,
+            "replay caller TE aligner minimap2 does not match cache TE aligner blat; "
+            "run the full tier",
+        ):
+            self.check(te_aligner="minimap2")
+
+    def test_input_newer_than_cache_fails(self):
+        os.utime(self.read1, (2_000_000_100, 2_000_000_100))
+        with self.assertRaisesRegex(
+            check_cache.CacheError, f"input {self.read1} changed after the cache was built"
+        ):
+            self.check()
+
+    def test_input_older_than_cache_passes(self):
+        os.utime(self.read1, (1_999_999_000, 1_999_999_000))
+        self.assertEqual(self.check(), self.sample_dir / "raw")
+
+    def test_missing_input_fails(self):
+        with self.assertRaisesRegex(check_cache.CacheError, "missing.fq"):
+            self.check(inputs=(self.root / "missing.fq",))
 
     def test_register_refuses_to_overwrite(self):
         with self.assertRaises(check_cache.CacheError):
             check_cache.register(
                 run_root=self.root / "runs", source_caller="src-caller",
                 source_rev=self.rev, libraries={"ds": self.library}, out=self.manifest,
+                te_aligner="blat",
             )
 
     def test_unchanged_tree_returns_cached_raw_dir(self):
@@ -138,6 +174,7 @@ class ReplayCacheTest(unittest.TestCase):
                         run_root=self.root / "runs", source_caller="src-caller",
                         source_rev=rev, libraries={"ds": self.library},
                         out=self.root / f"other-{len(rev)}.json",
+                        te_aligner="blat",
                     )
 
     def test_subdirectory_repo_unchanged_passes(self):
@@ -162,7 +199,8 @@ class ReplayCacheTest(unittest.TestCase):
         base = [
             sys.executable, str(SCRIPT), "check", "--manifest", str(self.manifest),
             "--rt3-repo", str(self.repo), "--dataset", "ds", "--sample", "s1",
-            "--te-library", str(self.library),
+            "--te-library", str(self.library), "--te-aligner", "blat",
+            "--input", str(self.read1),
         ]
         ok = subprocess.run(base, capture_output=True, text=True)
         self.assertEqual(ok.returncode, 0, ok.stderr)
@@ -172,6 +210,37 @@ class ReplayCacheTest(unittest.TestCase):
         self.assertEqual(bad.returncode, 2)
         self.assertEqual(bad.stdout, "")
         self.assertIn("full tier", bad.stderr)
+
+    def test_cli_requires_te_aligner(self):
+        args = [
+            sys.executable, str(SCRIPT), "check", "--manifest", str(self.manifest),
+            "--rt3-repo", str(self.repo), "--dataset", "ds", "--sample", "s1",
+            "--te-library", str(self.library),
+        ]
+        result = subprocess.run(args, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--te-aligner", result.stderr)
+
+    def test_cli_register_records_te_aligner(self):
+        out = self.root / "cli-manifest.json"
+        result = subprocess.run([
+            sys.executable, str(SCRIPT), "register", "--run-root", str(self.root / "runs"),
+            "--source-caller", "src-caller", "--source-rev", self.rev,
+            "--te-library", f"ds={self.library}", "--te-aligner", "blat", "--out", str(out),
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(out.read_text())["te_aligner"], "blat")
+
+    def test_cli_input_newer_than_cache_exits_2(self):
+        os.utime(self.read1, (2_000_000_100, 2_000_000_100))
+        result = subprocess.run([
+            sys.executable, str(SCRIPT), "check", "--manifest", str(self.manifest),
+            "--rt3-repo", str(self.repo), "--dataset", "ds", "--sample", "s1",
+            "--te-library", str(self.library), "--te-aligner", "blat",
+            "--input", str(self.read1),
+        ], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("changed after the cache was built", result.stderr)
 
 
 if __name__ == "__main__":

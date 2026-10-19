@@ -7,8 +7,14 @@
 
 ``check`` verifies that one sample may be replayed against the RelocaTE3 tree
 under test and prints that sample's cached ``raw/`` directory. It refuses when
-the TE-search source or the TE library no longer matches the cache, because the
+the TE-search source, the TE library or the TE aligner no longer matches the
+cache, or when an input file changed after the cache was built, because the
 replay would then silently score stale TE-search output.
+
+Input freshness (``--input``) is an mtime check, not a content check: an input
+whose modification time is newer than the source sample's ``.run_complete`` is
+refused. A file rewritten with identical content is refused too; a file changed
+while preserving an old mtime (``cp -p``, ``touch -d``) is not detected.
 
 Known blind spot: the mapping half of ``librelocate.py`` (``identify_TE_reads``)
 is not hashed, since the same file holds the trimming code under development.
@@ -85,7 +91,7 @@ def check_source(repo: Path, rev: str) -> None:
         raise CacheError(f"cannot compare {repo} with {rev}: {result.stderr.strip()}")
 
 
-def register(run_root, source_caller, source_rev, libraries, out) -> dict:
+def register(run_root, source_caller, source_rev, libraries, out, te_aligner) -> dict:
     out = Path(out)
     if out.exists():
         raise CacheError(f"refusing to overwrite existing manifest: {out}")
@@ -98,6 +104,7 @@ def register(run_root, source_caller, source_rev, libraries, out) -> dict:
         "source_rev": source_rev,
         "run_root": str(run_root),
         "source_caller": source_caller,
+        "te_aligner": te_aligner,
         "guarded_files": list(GUARDED_FILES),
         "te_library_sha256": {
             dataset: sha256(path) for dataset, path in sorted(libraries.items())
@@ -109,8 +116,15 @@ def register(run_root, source_caller, source_rev, libraries, out) -> dict:
     return manifest
 
 
-def check(manifest, repo, dataset, sample, te_library) -> Path:
+def check(manifest, repo, dataset, sample, te_library, te_aligner, inputs=()) -> Path:
     data = json.loads(Path(manifest).read_text())
+    if "te_aligner" not in data:
+        raise CacheError(f"manifest {manifest} records no te_aligner; re-register it")
+    if te_aligner != data["te_aligner"]:
+        raise CacheError(
+            f"replay caller TE aligner {te_aligner} does not match cache TE aligner "
+            f"{data['te_aligner']}; run the full tier"
+        )
     check_source(Path(repo), data["source_rev"])
     expected = data["te_library_sha256"].get(dataset)
     if expected is None:
@@ -122,6 +136,15 @@ def check(manifest, repo, dataset, sample, te_library) -> Path:
     sample_dir = Path(data["run_root"]) / dataset / data["source_caller"] / sample
     if not (sample_dir / ".run_complete").is_file():
         raise CacheError(f"source run is incomplete (no .run_complete): {sample_dir}")
+    built = (sample_dir / ".run_complete").stat().st_mtime_ns
+    for path in inputs:
+        if not Path(path).is_file():
+            raise CacheError(f"input missing: {path}")
+        if Path(path).stat().st_mtime_ns > built:
+            raise CacheError(
+                f"input {path} changed after the cache was built "
+                f"({sample_dir / '.run_complete'}); run the full tier"
+            )
     raw = sample_dir / "raw"
     missing = [str(path) for path in cached_files(raw, sample) if not path.is_file()]
     if missing:
@@ -148,6 +171,8 @@ def main(argv=None) -> int:
     reg.add_argument("--source-rev", required=True)
     reg.add_argument("--te-library", action="append", type=_library_arg, required=True,
                      metavar="DATASET=PATH")
+    reg.add_argument("--te-aligner", required=True,
+                     help="TE aligner the cached TE-search BAMs were built with")
     reg.add_argument("--out", required=True)
     chk = sub.add_parser("check", help="verify one sample; print its cached raw/ dir")
     chk.add_argument("--manifest", required=True)
@@ -155,15 +180,19 @@ def main(argv=None) -> int:
     chk.add_argument("--dataset", required=True)
     chk.add_argument("--sample", required=True)
     chk.add_argument("--te-library", required=True)
+    chk.add_argument("--te-aligner", required=True,
+                     help="TE aligner the replay caller is configured with")
+    chk.add_argument("--input", action="append", default=[], metavar="FILE",
+                     help="input that must predate the cache (mtime check; repeatable)")
     args = parser.parse_args(argv)
     try:
         if args.mode == "register":
             register(args.run_root, args.source_caller, args.source_rev,
-                     dict(args.te_library), args.out)
+                     dict(args.te_library), args.out, args.te_aligner)
             print(f"registered replay cache: {args.out}", file=sys.stderr)
         else:
             print(check(args.manifest, args.rt3_repo, args.dataset, args.sample,
-                        args.te_library))
+                        args.te_library, args.te_aligner, args.input))
     except (CacheError, OSError, KeyError, json.JSONDecodeError) as error:
         print(f"ERROR: replay cache: {error}", file=sys.stderr)
         return 2

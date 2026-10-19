@@ -64,7 +64,7 @@ class ReplayAdapterTest(unittest.TestCase):
         root = self.root = Path(self._tmp.name)
         self.repo, rev = make_rt3_repo(root)
         self.cache_sample = make_cache(root, sample="s1")
-        stub = root / "stub"
+        stub = self.stub = root / "stub"
         stub.mkdir()
         for name, text in (
             ("relocaTE3", STUB_RELOCATE3.replace("{python}", sys.executable)),
@@ -85,7 +85,12 @@ class ReplayAdapterTest(unittest.TestCase):
         self.manifest = root / "manifest.json"
         check_cache.register(run_root=root / "runs", source_caller="src-caller",
                              source_rev=rev, libraries={"ds": self.library},
-                             out=self.manifest)
+                             out=self.manifest, te_aligner="blat")
+        # Inputs predate the cache; set explicitly rather than relying on write order.
+        self.cache_done = self.cache_sample / ".run_complete"
+        os.utime(self.cache_done, (2_000_000_000, 2_000_000_000))
+        for path in inputs.iterdir():
+            os.utime(path, (1_000_000_000, 1_000_000_000))
         self.log = root / "stub.log"
         self.outdir = root / "out" / "s1"
         self.env = {
@@ -141,6 +146,116 @@ class ReplayAdapterTest(unittest.TestCase):
         self.assertNotIn("minimap2", self.log.read_text())
         self.assertTrue((self.outdir / ".run_complete").is_file())
         self.assertEqual(self.snapshot(), before)
+
+    def test_replay_links_cached_indexes(self):
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for side in ("left", "right"):
+            link = self.outdir / "raw" / f"s1.{side}.bam.bai"
+            self.assertTrue(link.is_symlink(), link)
+            self.assertEqual(link.resolve(),
+                             (self.cache_sample / "raw" / f"s1.{side}.bam.bai").resolve())
+
+    def test_replay_echo_marks_te_search_cached(self):
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("te-aligner  : blat (cached)", result.stdout)
+
+    def test_full_tier_echo_has_no_cached_marker(self):
+        del self.env["RT3_REPLAY_MANIFEST"]
+        result = self.run_adapter("callers/relocate3/run.sh")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("te-aligner  : blat\n", result.stdout)
+        self.assertNotIn("(cached)", result.stdout)
+        self.assertNotIn("Replay source:", result.stdout)
+
+    def test_trim_parameters_match_full_tier_run(self):
+        self.env.update(RT3_MIN_MATCH="12", RT3_MIN_TRIMMED="14", RT3_MISMATCH="3")
+        replay = self.run_adapter()
+        self.assertEqual(replay.returncode, 0, replay.stdout + replay.stderr)
+        del self.env["RT3_REPLAY_MANIFEST"]
+        self.env["OUTDIR"] = str(self.root / "out-full" / "s1")
+        full = self.run_adapter("callers/relocate3/run.sh")
+        self.assertEqual(full.returncode, 0, full.stdout + full.stderr)
+        trim = next(c for c in self.calls() if c[0] == "trim")
+        run = next(c for c in self.calls() if c[0] == "run")
+        for flag, value in (("--min-match", "12"), ("--min-trimmed", "14"),
+                            ("--mismatch", "3")):
+            with self.subTest(flag=flag):
+                self.assertEqual(trim[trim.index(flag) + 1], value)
+                self.assertEqual(trim[trim.index(flag) + 1], run[run.index(flag) + 1])
+
+    def test_import_check_ignores_decoy_package_on_pythonpath(self):
+        decoy = self.root / "decoy"
+        (decoy / "RelocaTE3").mkdir(parents=True)
+        (decoy / "RelocaTE3" / "__init__.py").write_text("")
+        self.env["PYTHONPATH"] = str(decoy)
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        expected = (self.repo / "src" / "RelocaTE3" / "__init__.py").resolve()
+        self.assertIn(f"Replay source: {expected}", result.stdout)
+
+    def test_import_check_fails_when_rt3_repo_lacks_package(self):
+        # Guarded files stay intact, so the cache guard passes; without __init__.py
+        # RT3_REPO/src/RelocaTE3 is only a namespace portion and the decoy wins.
+        (self.repo / "src" / "RelocaTE3" / "__init__.py").unlink()
+        decoy = self.root / "decoy"
+        (decoy / "RelocaTE3").mkdir(parents=True)
+        (decoy / "RelocaTE3" / "__init__.py").write_text("")
+        self.env["PYTHONPATH"] = str(decoy)
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("not under", result.stderr)
+        # Refused before any RelocaTE3 stage ran.
+        self.assertFalse(self.log.exists() and '"trim"' in self.log.read_text())
+
+    def test_import_check_uses_relocate3_interpreter(self):
+        # A broken python3 on PATH must not matter: the check runs under the
+        # interpreter named in relocaTE3's shebang.
+        (self.stub / "python3").unlink()
+        (self.stub / "python3").write_text("#!/bin/sh\nexit 3\n")
+        (self.stub / "python3").chmod(0o755)
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Replay source:", result.stdout)
+
+    def test_replay_te_aligner_mismatch_is_refused(self):
+        self.env["RT3_TE_ALIGNER"] = "minimap2"
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not match cache TE aligner blat", result.stderr)
+        self.assertFalse(self.outdir.exists())
+
+    def test_replay_refuses_input_newer_than_cache(self):
+        os.utime(self.env["R2"], (2_000_000_100, 2_000_000_100))
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"input {self.env['R2']} changed after the cache was built",
+                      result.stderr)
+        self.assertFalse(self.outdir.exists())
+
+    def test_replay_refuses_reference_newer_than_cache(self):
+        os.utime(self.env["REFERENCE"], (2_000_000_100, 2_000_000_100))
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("changed after the cache was built", result.stderr)
+        self.assertFalse(self.outdir.exists())
+
+    def test_completed_outdir_skips_guard(self):
+        self.outdir.mkdir(parents=True)
+        (self.outdir / ".run_complete").write_text("done\n")
+        self.env["RT3_REPLAY_MANIFEST"] = str(self.root / "no-such-manifest.json")
+        result = self.run_adapter()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("already complete", result.stdout)
+        self.assertFalse(self.log.exists())
+
+    def test_replay_without_dataset_fails_before_output(self):
+        del self.env["DATASET"]
+        result = self.run_adapter()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("DATASET", result.stderr)
+        self.assertFalse(self.outdir.exists())
 
     def test_stale_te_search_source_is_refused_before_any_output(self):
         (self.repo / "src/RelocaTE3/aligners.py").write_text("BLAT = 9\n")
