@@ -66,8 +66,19 @@ if (( SHOW_HELP == 1 )); then
 fi
 
 if [[ -n "$RT3_REPO_OVERRIDE" ]]; then
+  # A checkpoint profile reproduces a pinned RelocaTE3 revision (verified by
+  # its verify_source.py); pointing it at another checkout would defeat that.
+  if [[ "$(basename "$CONFIG")" == benchmark.checkpoint-*.toml ]]; then
+    echo "ERROR: --rt3-repo is not allowed with $CONFIG: the checkpoint profile is pinned to its recorded RelocaTE3 revision" >&2
+    exit 1
+  fi
   if [[ ! -d "$RT3_REPO_OVERRIDE/src/RelocaTE3" || ! -f "$RT3_REPO_OVERRIDE/pixi.toml" ]]; then
     echo "ERROR: --rt3-repo must be a RelocaTE3 checkout (src/RelocaTE3 and pixi.toml): $RT3_REPO_OVERRIDE" >&2
+    exit 1
+  fi
+  # Every array task activates this env; concurrent tasks must not build it.
+  if [[ ! -x "$RT3_REPO_OVERRIDE/.pixi/envs/default/bin/relocaTE3" ]]; then
+    echo "ERROR: --rt3-repo has no installed pixi environment ($RT3_REPO_OVERRIDE/.pixi/envs/default/bin/relocaTE3); run \`pixi install\` in $RT3_REPO_OVERRIDE first (on a compute node)" >&2
     exit 1
   fi
   RT3_REPO_OVERRIDE="$(cd "$RT3_REPO_OVERRIDE" && pwd)"
