@@ -116,6 +116,11 @@ Fix: revert the change, or use the full tier (`config/benchmark.toml`).
 - (l) Cosmetic: PDF report labels show `relocate3-replay` unprettified
   (`pretty_caller` in `scoring/report_lib.R` expects `relocate3-<te>-<genome>`);
   `relocate2-frozen` shows as `RelocaTE2-frozen`.
+- (m) The rerun identity (`replay_source.txt`) covers RelocaTE3's commit and
+  `src/` only. A change to `pixi.toml`/`pixi.lock` or the installed
+  dependencies alone does not invalidate a completed replay; move `runs/dev`
+  aside after dependency changes. Any new commit (even docs-only) does
+  invalidate it, which errs on the safe side.
 
 ## Checkpoint source guard re-pin
 
