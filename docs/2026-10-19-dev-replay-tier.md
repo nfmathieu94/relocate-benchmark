@@ -8,8 +8,8 @@ Plan: [plans/2026-10-19-dev-replay-tier.md](plans/2026-10-19-dev-replay-tier.md)
 
 ## Purpose
 
-Benchmark a RelocaTE3 change in hours instead of days when the change is
-downstream of the TE search (trim, genome placement, insertion finding,
+Benchmark a RelocaTE3 change without rerunning BLAT (about 93% of a 30x
+multi-TE run) when the change is downstream of the TE search (trim, genome placement, insertion finding,
 characterization). Accuracy only; release evidence still needs the full tier.
 
 ## What it does
@@ -81,6 +81,10 @@ Fix: revert the change, or use the full tier (`config/benchmark.toml`).
   (same as the other adapters).
 - (h) The gate script expects a complete 72-sample dev run. Quick-tier subsets
   report the unrun samples as "missing".
+- (j) Before the first `--rt3-repo` run against a new RelocaTE3 worktree,
+  install that worktree's pixi environment once (`pixi install` in the worktree,
+  on a compute node). Every array task activates `$RT3_REPO/pixi.toml`; without
+  a prebuilt environment, concurrent tasks would each try to create it.
 - (i) The cache lives in `runs/checkpoint-213a0df` (382 GB). Do not delete it
   while the dev tier is in use. `/bigdata` was 95% full on 2026-10-19.
 
@@ -96,7 +100,7 @@ Results: TBD. Procedure (maintainer runs it, in the main checkout, after merge):
 3. After aggregation:
    `python3.12 scripts/compare_replay_gate.py --out reports/dev/replay_gate.tsv`.
    Expect exit 0 and every row `identical` (144 calls rows + 144 precision rows).
-4. Record per-sample replay wall time from `reports/dev/datasets/*/resources.tsv`
+4. Record per-sample replay wall time (the first measurement of the speedup) from `reports/dev/datasets/*/resources.tsv`
    (relocate3-replay rows) here, then remove the worktree
    (`git worktree remove ../relocate-benchmark-dev-replay`).
 

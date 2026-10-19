@@ -141,8 +141,9 @@ Add `--no-aggregate` to skip the dependent aggregation job.
 
 For RelocaTE3 changes downstream of the TE search, `config/benchmark.dev.toml`
 replays trim through characterize from cached checkpoint BAMs and copies
-RelocaTE2's frozen calls, so a run takes hours instead of days. Outputs go to
-`runs/dev/` and `reports/dev/`.
+RelocaTE2's frozen calls, so BLAT (most of the full-tier runtime) is skipped.
+Outputs go to `runs/dev/` and `reports/dev/`. Run `pixi install` once in a new
+RelocaTE3 worktree before pointing `--rt3-repo` at it.
 
 ```bash
 CONFIG=config/benchmark.dev.toml bash pipeline/submit_benchmark.sh --dataset full
