@@ -1,0 +1,74 @@
+# Development tier: fast accuracy check for RelocaTE3 changes downstream of the
+# TE search. RelocaTE3 replays trim -> characterize from the registered
+# checkpoint's cached BLAT BAMs and genotyping BAMs; RelocaTE2 is re-scored from
+# its frozen checkpoint calls. Accuracy only: resources.tsv here measures
+# replays and file copies, not real runs. Release evidence comes from a full-tier
+# run (config/benchmark.toml). Design: docs/plans/2026-10-19-dev-replay-tier-design.md.
+#
+#   CONFIG=config/benchmark.dev.toml bash pipeline/submit_benchmark.sh --dataset full
+#   CONFIG=config/benchmark.dev.toml bash pipeline/submit_benchmark.sh \
+#     --dataset full --coverage 5,15 --replicate 1 --rt3-repo ../../RelocaTE3_jason/<worktree>
+
+[benchmark]
+default_dataset = "mping"
+
+# [datasets.mping], [datasets.ricetelib], [datasets.ricetelib_divergence]:
+# identical to config/benchmark.checkpoint-213a0df.toml (copied verbatim below).
+
+[datasets.mping]
+enabled      = true
+label        = "mPing only"
+panel_root   = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/somatic_mping_panel_chr1"
+reference    = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+te_library   = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/TE_lib/mping_superfam_header.fa"
+repeatmasker = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/repeatmasker/MSU_r7.fa.out"
+te_name      = "mPing"
+
+[datasets.ricetelib]
+enabled          = true
+label            = "riceTElib multi-TE"
+panel_root       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_benchmark"
+reference        = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+te_library       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_benchmark/selected_te_library.fa"
+repeatmasker     = "cache/reference_annotations/MSU_r7.full.repeatmasker.out"
+repeatmasker_gff = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa.RepeatMasker.out.gff"
+te_name          = "riceTElib"
+
+[datasets.ricetelib_divergence]
+enabled          = true
+label            = "riceTElib TE divergence"
+panel_root       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_div_benchmark"
+reference        = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa"
+te_library       = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/results/riceTElib_div_benchmark/canonical_te_library.fa"
+repeatmasker     = "cache/reference_annotations/MSU_r7.full.repeatmasker.out"
+repeatmasker_gff = "/bigdata/wesslerlab/shared/Rice/Nathan/rice/make_simulated_genome/make_simulation_new/input/ref_genome/MSU_r7.fa.RepeatMasker.out.gff"
+te_name          = "riceTElib"
+
+[run]
+work_root   = "runs/dev"
+report_root = "reports/dev"
+truth_root  = "truth"
+threads     = 8
+
+[scoring]
+match_window = 10
+coordinate_policy = "tsd-interval"
+
+[callers.relocate2-frozen]
+enabled       = true
+adapter       = "callers/frozen"
+source_root   = "runs/checkpoint-213a0df"
+source_caller = "relocate2"
+label         = "RelocaTE2 (frozen checkpoint)"
+
+[callers.relocate3-replay]
+enabled         = true
+adapter         = "callers/relocate3-replay"
+adapter_type    = "relocate3"
+repo            = "/rhome/nmath020/bigdata/github/github_tools/RelocaTE/RelocaTE3_jason/RelocaTE3"
+tsd             = "UNK"
+te_aligner      = "blat"      # must equal the manifest's te_aligner (guard-enforced)
+genome_aligner  = "bwaaln"
+require_both_junctions = 1
+replay_manifest = "config/replay/checkpoint-213a0df.json"
+label           = "RelocaTE3-blat/bwa-aln (replay)"

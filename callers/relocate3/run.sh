@@ -10,7 +10,8 @@
 # Contract (env vars):
 #   Required: SAMPLE R1 R2 REFERENCE TE_LIBRARY REPEATMASKER OUTDIR THREADS RT3_REPO
 #   Defaults: TE_NAME TSD_PATTERN TARGET RT3_ALIGNER RT3_MISMATCH
-#             RT3_MIN_MATCH RT3_MIN_TRIMMED RT3_MIN_MAPQ
+#             RT3_MIN_MATCH RT3_MIN_TRIMMED RT3_MIN_MAPQ RT3_REPLAY_MANIFEST
+#   RT3_REPLAY_MANIFEST set => replay mode (development tier; see callers/relocate3-replay)
 #
 # Final output:
 #   $OUTDIR/raw/results/$TARGET.$TE_NAME.all_nonref_insert.characTErized.txt
@@ -81,6 +82,44 @@ for f in "$R1" "$R2" "$REFERENCE" "$TE_LIBRARY" "$REPEATMASKER"; do
 done
 
 # ---------------------------------------------------------------------------
+# 1b. Replay mode (development tier). With RT3_REPLAY_MANIFEST set, reuse a
+#     registered full-tier run's TE-search BAMs and all-read genotyping BAM
+#     instead of rerunning BLAT and minimap2. The guard refuses when RT3_REPO's
+#     TE-search source or the TE library no longer matches the cache.
+#     A completed replay is reused only for the same RelocaTE3 tree: its
+#     identity (HEAD + uncommitted/untracked src/ changes) is recorded in
+#     replay_source.txt, and a rerun against any other tree is refused rather
+#     than silently re-scoring the old calls.
+# ---------------------------------------------------------------------------
+REPLAY_RAW=""
+REPLAY_SOURCE=""
+if [[ -n "${RT3_REPLAY_MANIFEST:-}" ]]; then
+  if [[ -f "$OUTDIR/.run_complete" ]]; then
+    REPLAY_SOURCE="$(python3.12 callers/relocate3-replay/check_cache.py identity \
+      --rt3-repo "$RT3_REPO")"
+    RECORDED_SOURCE="none recorded"
+    if [[ -f "$OUTDIR/replay_source.txt" ]]; then
+      RECORDED_SOURCE="$(<"$OUTDIR/replay_source.txt")"
+    fi
+    if [[ "$RECORDED_SOURCE" != "$REPLAY_SOURCE" ]]; then
+      echo "ERROR: $OUTDIR holds replay results from a different RelocaTE3 tree ($RECORDED_SOURCE) than $RT3_REPO ($REPLAY_SOURCE); move runs/dev and reports/dev aside (e.g. runs/dev-<label>) before resubmitting." >&2
+      exit 1
+    fi
+  else
+    REPLAY_RAW="$(python3.12 callers/relocate3-replay/check_cache.py check \
+      --manifest "$RT3_REPLAY_MANIFEST" \
+      --rt3-repo "$RT3_REPO" \
+      --dataset "${DATASET:?DATASET must be set in replay mode}" \
+      --sample "$SAMPLE" \
+      --te-library "$TE_LIBRARY" \
+      --te-aligner "$RT3_TE_ALIGNER" \
+      --input "$R1" --input "$R2" --input "$REFERENCE")"
+    REPLAY_SOURCE="$(python3.12 callers/relocate3-replay/check_cache.py identity \
+      --rt3-repo "$RT3_REPO")"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # 2. Idempotency / run-dir safety.
 # ---------------------------------------------------------------------------
 if [[ -f "$OUTDIR/.run_complete" ]]; then
@@ -93,6 +132,9 @@ if [[ -d "$OUTDIR" ]] && [[ -n "$(ls -A "$OUTDIR" 2>/dev/null)" ]]; then
   exit 1
 fi
 mkdir -p "$OUTDIR"
+if [[ -n "$REPLAY_RAW" ]]; then
+  printf '%s\n' "$REPLAY_SOURCE" > "$OUTDIR/replay_source.txt"
+fi
 
 # ---------------------------------------------------------------------------
 # 3. Raw output directory used as RelocaTE3 --outdir / -o.
@@ -106,6 +148,32 @@ mkdir -p "$RAW"
 : "${ADAPTER_DIR:=callers/relocate3}"
 # shellcheck source=env.sh
 source "$ADAPTER_DIR/env.sh"
+if [[ -n "$REPLAY_RAW" ]]; then
+  # Test the tree in RT3_REPO itself, whichever RelocaTE3 the env installed.
+  export PYTHONPATH="$RT3_REPO/src${PYTHONPATH:+:$PYTHONPATH}"
+  # Check with the interpreter relocaTE3 itself runs under (its shebang), so a
+  # different python3 on PATH cannot pass the check for the wrong environment.
+  # Trust only a python shebang: pip/uv write a `#!/bin/sh` trampoline when the
+  # interpreter path exceeds 127 chars; fall back to python3 then.
+  RT3_PYTHON="python3"
+  _rt3_shebang="$(LC_ALL=C head -n 1 "$(command -v relocaTE3)" 2>/dev/null | tr -d '\0' || true)"
+  if [[ "$_rt3_shebang" =~ ^\#\!(/[^[:space:]]+)[[:space:]]*$ && -x "${BASH_REMATCH[1]}" \
+        && "${BASH_REMATCH[1]##*/}" == python* ]]; then
+    RT3_PYTHON="${BASH_REMATCH[1]}"
+  fi
+  "$RT3_PYTHON" - <<'PY'
+import os, pathlib, sys
+import RelocaTE3
+root = (pathlib.Path(os.environ["RT3_REPO"]) / "src").resolve()
+source = getattr(RelocaTE3, "__file__", None)
+if not source:
+    sys.exit(f"ERROR: RelocaTE3 imported as a namespace package, not under {root}")
+path = pathlib.Path(source).resolve()
+print("Replay source:", path)
+if not path.is_relative_to(root):
+    sys.exit(f"ERROR: RelocaTE3 imported from {path}, not under {root}")
+PY
+fi
 
 # ---------------------------------------------------------------------------
 # 5. RelocaTE3 pipeline.
@@ -134,7 +202,7 @@ echo "  R1          : $R1"
 echo "  R2          : $R2"
 echo "  outdir      : $OUTDIR (raw -> $RAW)"
 echo "  threads     : $THREADS"
-echo "  te-aligner  : $RT3_TE_ALIGNER"
+echo "  te-aligner  : $RT3_TE_ALIGNER${REPLAY_RAW:+ (cached)}"
 echo "  gen-aligner : $RT3_GENOME_ALIGNER"
 echo "  mismatch    : $RT3_MISMATCH"
 echo "  match/trim  : ${RT3_MIN_MATCH}/${RT3_MIN_TRIMMED}"
@@ -142,6 +210,7 @@ echo "  te_name/TSD : ${TE_NAME}/${TSD_PATTERN}"
 echo "  target      : $TARGET"
 echo "  min-mapq    : $RT3_MIN_MAPQ"
 echo "  both-junc   : $RT3_REQUIRE_BOTH_JUNCTIONS"
+echo "  replay      : ${REPLAY_RAW:-no (full TE search)}"
 
 # Reference inputs are external and read-only to this benchmark. Substantial
 # indexing also does not belong inside every array task.
@@ -153,18 +222,37 @@ fi
 echo "[$(date)] genome already indexed (.fai + .mmi present)"
 
 # Steps 2+3: align reads to the TE library and trim TE sequence from them.
-echo "[$(date)] run (map + trim)"
-relocaTE3 run \
-  --left "$R1" \
-  --right "$R2" \
-  --te-library "$TE_LIBRARY" \
-  --name "$SAMPLE" \
-  --outdir "$RAW" \
-  --threads "$THREADS" \
-  --te-aligner "$RT3_TE_ALIGNER" \
-  --min-match "$RT3_MIN_MATCH" \
-  --min-trimmed "$RT3_MIN_TRIMMED" \
-  --mismatch "$RT3_MISMATCH"
+if [[ -n "$REPLAY_RAW" ]]; then
+  # Same write_trimmed_reads call `run` makes, on the cached TE-search BAMs.
+  echo "[$(date)] replay: trim from cached TE-search BAMs in $REPLAY_RAW"
+  for side in left right; do
+    for ext in bam bam.bai; do
+      ln -s "$(readlink -f "$REPLAY_RAW/${SAMPLE}.${side}.${ext}")" \
+        "$RAW/${SAMPLE}.${side}.${ext}"
+    done
+  done
+  relocaTE3 trim \
+    --bam "$RAW/${SAMPLE}.left.bam" "$RAW/${SAMPLE}.right.bam" \
+    --fastq "$R1" "$R2" \
+    --name "$SAMPLE" \
+    --outdir "$RAW" \
+    --min-match "$RT3_MIN_MATCH" \
+    --min-trimmed "$RT3_MIN_TRIMMED" \
+    --mismatch "$RT3_MISMATCH"
+else
+  echo "[$(date)] run (map + trim)"
+  relocaTE3 run \
+    --left "$R1" \
+    --right "$R2" \
+    --te-library "$TE_LIBRARY" \
+    --name "$SAMPLE" \
+    --outdir "$RAW" \
+    --threads "$THREADS" \
+    --te-aligner "$RT3_TE_ALIGNER" \
+    --min-match "$RT3_MIN_MATCH" \
+    --min-trimmed "$RT3_MIN_TRIMMED" \
+    --mismatch "$RT3_MISMATCH"
+fi
 
 if [[ ! -s "$READ_REPEAT" ]]; then
   echo "ERROR: expected read_repeat table not produced: $READ_REPEAT" >&2
@@ -247,11 +335,17 @@ fi
 
 # Build the full-reads-to-genome BAM ourselves for characterize (no external
 # alignment available in the benchmark). Atomic: write to a temp then rename.
-echo "[$(date)] building full-reads-to-genome BAM for characterize"
-minimap2 -a -x sr -t "$THREADS" "$REFERENCE" "$R1" "$R2" \
-  | samtools sort -@ "$THREADS" -o "${CHARACTERIZATION_BAM}.tmp"
-mv -f "${CHARACTERIZATION_BAM}.tmp" "$CHARACTERIZATION_BAM"
-samtools index "$CHARACTERIZATION_BAM"
+if [[ -n "$REPLAY_RAW" ]]; then
+  # minimap2 of all reads involves no RelocaTE3 code; reuse it read-only.
+  CHARACTERIZATION_BAM="$(readlink -f "$REPLAY_RAW/${SAMPLE}.original_reads.sorted.bam")"
+  echo "[$(date)] replay: cached all-read BAM $CHARACTERIZATION_BAM"
+else
+  echo "[$(date)] building full-reads-to-genome BAM for characterize"
+  minimap2 -a -x sr -t "$THREADS" "$REFERENCE" "$R1" "$R2" \
+    | samtools sort -@ "$THREADS" -o "${CHARACTERIZATION_BAM}.tmp"
+  mv -f "${CHARACTERIZATION_BAM}.tmp" "$CHARACTERIZATION_BAM"
+  samtools index "$CHARACTERIZATION_BAM"
+fi
 
 # Step 7: characterize zygosity (hom/het/somatic) using our full-reads BAM.
 echo "[$(date)] characterize (step 7) using all-read BAM: $CHARACTERIZATION_BAM"

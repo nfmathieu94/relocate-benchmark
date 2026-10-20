@@ -22,6 +22,7 @@ FILTER_SAMPLE=""
 FILTER_REPLICATE=""
 NO_AGGREGATE=0
 SHOW_HELP=0
+RT3_REPO_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
     --divergence) FILTER_DIVERGENCE="$2"; shift 2 ;;
     --sample)     FILTER_SAMPLE="$2";     shift 2 ;;
     --replicate)  FILTER_REPLICATE="$2";  shift 2 ;;
+    --rt3-repo)   RT3_REPO_OVERRIDE="$2"; shift 2 ;;
     --no-aggregate) NO_AGGREGATE=1; shift ;;
     -h|--help) SHOW_HELP=1; shift ;;
     *) echo "ERROR: unknown argument: $1" >&2; exit 1 ;;
@@ -48,6 +50,7 @@ Options:
   --divergence <list>  TE divergence percentage(s), comma-separated
   --sample <list>      Sample name(s), comma-separated
   --replicate <list>   Replicate value(s), comma-separated
+  --rt3-repo <path>    Run RelocaTE3 callers from this checkout (e.g. a worktree)
   --no-aggregate       Do not submit the dependent aggregation job
   -h, --help           Show this help
 
@@ -60,6 +63,28 @@ EOF
 if (( SHOW_HELP == 1 )); then
   print_help
   exit 0
+fi
+
+if [[ -n "$RT3_REPO_OVERRIDE" ]]; then
+  # A checkpoint profile reproduces a pinned RelocaTE3 revision (verified by
+  # its verify_source.py); pointing it at another checkout would defeat that.
+  if [[ "$(basename "$CONFIG")" == benchmark.checkpoint-*.toml ]]; then
+    echo "ERROR: --rt3-repo is not allowed with $CONFIG: the checkpoint profile is pinned to its recorded RelocaTE3 revision" >&2
+    exit 1
+  fi
+  if [[ ! -d "$RT3_REPO_OVERRIDE/src/RelocaTE3" || ! -f "$RT3_REPO_OVERRIDE/pixi.toml" ]]; then
+    echo "ERROR: --rt3-repo must be a RelocaTE3 checkout (src/RelocaTE3 and pixi.toml): $RT3_REPO_OVERRIDE" >&2
+    exit 1
+  fi
+  # Every array task activates this env; concurrent tasks must not build it.
+  if [[ ! -x "$RT3_REPO_OVERRIDE/.pixi/envs/default/bin/relocaTE3" ]]; then
+    echo "ERROR: --rt3-repo has no installed pixi environment ($RT3_REPO_OVERRIDE/.pixi/envs/default/bin/relocaTE3); run \`pixi install\` in $RT3_REPO_OVERRIDE first (on a compute node)" >&2
+    exit 1
+  fi
+  RT3_REPO_OVERRIDE="$(cd "$RT3_REPO_OVERRIDE" && pwd)"
+  # --export=ALL carries this to the array; config_env.py applies it.
+  export RT3_REPO_OVERRIDE
+  echo "[$(date)] RelocaTE3 callers will use: $RT3_REPO_OVERRIDE"
 fi
 
 # Resolve an omitted selection to its concrete configured default so array and
@@ -201,6 +226,17 @@ _csv_has() {
   return 1
 }
 
+# TE aligners (one per line on stdin) that need a TE-library index built here,
+# unique and sorted. BLAT needs none, so a blat-only selection activates no env.
+te_aligners_needing_index() {
+  local aligner
+  while IFS= read -r aligner; do
+    if [[ -n "$aligner" && "$aligner" != blat ]]; then
+      printf '%s\n' "$aligner"
+    fi
+  done | sort -u
+}
+
 TE_ALIGNERS=()
 while IFS= read -r caller; do
   [[ -n "$caller" ]] || continue
@@ -210,7 +246,11 @@ while IFS= read -r caller; do
   [[ -z "$aligner" ]] || TE_ALIGNERS+=("$aligner")
 done < <("${PY[@]}" pipeline/config_env.py --config "$CONFIG" callers)
 
+INDEX_ALIGNERS=()
 if ((${#TE_ALIGNERS[@]})); then
+  mapfile -t INDEX_ALIGNERS < <(printf '%s\n' "${TE_ALIGNERS[@]}" | te_aligners_needing_index)
+fi
+if ((${#INDEX_ALIGNERS[@]})); then
   ADAPTER_DIR="callers/relocate3"
   source callers/relocate3/env.sh
   while IFS=$'\t' read -r dataset label panel_root; do
@@ -225,10 +265,9 @@ if ((${#TE_ALIGNERS[@]})); then
         minimap2)
           [[ -s "${TE_LIBRARY}.mmi" ]] ||
             minimap2 -d "${TE_LIBRARY}.mmi" "$TE_LIBRARY" ;;
-        blat) : ;;
         *) echo "WARN: unknown TE aligner '$aligner'; task will prepare it" >&2 ;;
       esac
-    done < <(printf '%s\n' "${TE_ALIGNERS[@]}" | sort -u)
+    done < <(printf '%s\n' "${INDEX_ALIGNERS[@]}")
   done <<< "$DATASET_ROWS"
 fi
 

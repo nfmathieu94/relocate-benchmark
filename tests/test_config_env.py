@@ -1,8 +1,11 @@
 import importlib.util
+import os
+import re
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -467,6 +470,97 @@ adapter = "callers/relocate3"
         )
         self.assertEqual(matching.strip(), "0")
         self.assertEqual(missing.strip(), "")
+
+DEV_CALLERS = """
+[run]
+work_root = "runs"
+threads   = 8
+
+[scoring]
+match_window = 10
+
+[datasets.d1]
+panel_root   = "{panel}"
+reference    = "/ref.fa"
+te_library   = "/te.fa"
+repeatmasker = "/rm.out"
+te_name      = "mPing"
+
+[callers.relocate2-frozen]
+enabled       = true
+adapter       = "callers/frozen"
+source_root   = "runs/checkpoint-213a0df"
+source_caller = "relocate2"
+
+[callers.relocate3-replay]
+enabled         = true
+adapter         = "callers/relocate3-replay"
+adapter_type    = "relocate3"
+repo            = "/configured/rt3"
+genome_aligner  = "bwaaln"
+replay_manifest = "config/replay/checkpoint-213a0df.json"
+"""
+
+
+class DevTierEnvTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        tmp = Path(self._tmp.name)
+        (tmp / "panel").mkdir()
+        (tmp / "panel" / "panel_manifest.tsv").write_text(MANIFEST)
+        self.cfg = tmp / "dev.toml"
+        self.cfg.write_text(DEV_CALLERS.format(panel=tmp / "panel"))
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def env(self, caller):
+        return config_env.run(["--config", str(self.cfg), "caller-env", caller])
+
+    def test_frozen_adapter_exports_source(self):
+        out = self.env("relocate2-frozen")
+        self.assertIn("FROZEN_SOURCE_ROOT='runs/checkpoint-213a0df'", out)
+        self.assertIn("FROZEN_SOURCE_CALLER='relocate2'", out)
+
+    def test_replay_caller_exports_manifest(self):
+        out = self.env("relocate3-replay")
+        self.assertIn(
+            "RT3_REPLAY_MANIFEST='config/replay/checkpoint-213a0df.json'", out
+        )
+        self.assertIn("RT3_REPO='/configured/rt3'", out)
+
+    def test_rt3_repo_override_replaces_configured_repo(self):
+        with patch.dict(os.environ, {"RT3_REPO_OVERRIDE": "/work/tree"}):
+            out = self.env("relocate3-replay")
+        self.assertIn("RT3_REPO='/work/tree'", out)
+        self.assertNotIn("/configured/rt3", out)
+
+    def test_override_does_not_add_repo_to_other_adapters(self):
+        with patch.dict(os.environ, {"RT3_REPO_OVERRIDE": "/work/tree"}):
+            out = self.env("relocate2-frozen")
+        self.assertNotIn("RT3_REPO", out)
+
+    def test_array_allowlist_exports_every_mapped_variable(self):
+        text = (REPO_ROOT / "pipeline" / "run_benchmark_array.sh").read_text()
+        match = re.search(r"^CALLER_VARIABLES=\((.*?)\)", text, re.S | re.M)
+        self.assertIsNotNone(match, "CALLER_VARIABLES array not found")
+        allowlisted = set(match.group(1).replace("\\", " ").split())
+        mapped = {
+            env for table in config_env.ADAPTER_ENV_MAP.values() for env in table.values()
+        }
+        self.assertEqual(mapped - allowlisted, set())
+        # config_env.py reads the override, so it must survive the clearing.
+        self.assertNotIn("RT3_REPO_OVERRIDE", allowlisted)
+
+    def test_array_clears_inherited_caller_variables_before_caller_env(self):
+        # --export=ALL would otherwise leak a stray submitting-shell value
+        # (e.g. RT3_REPLAY_MANIFEST) into callers whose config does not set it.
+        text = (REPO_ROOT / "pipeline" / "run_benchmark_array.sh").read_text()
+        unset_at = text.find('unset "${CALLER_VARIABLES[@]}"')
+        eval_at = text.find("caller-env \"$CALLER\"")
+        self.assertNotEqual(unset_at, -1, "caller variables are never unset")
+        self.assertNotEqual(eval_at, -1, "caller-env eval line not found")
+        self.assertLess(unset_at, eval_at)
 
 
 if __name__ == "__main__":

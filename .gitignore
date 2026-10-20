@@ -26,6 +26,12 @@ reports/checkpoint-*/datasets/*/resources/
 reports/checkpoint-*/datasets/*/figures/
 reports/checkpoint-*/datasets/*/*.pdf
 
+# Development-tier report root (reports/dev/): same policy as checkpoint roots.
+reports/dev/datasets/*/per_sample/
+reports/dev/datasets/*/resources/
+reports/dev/datasets/*/figures/
+reports/dev/datasets/*/*.pdf
+
 # Standalone publication figures (large, regenerable by make_report.R)
 reports/figures/
 
