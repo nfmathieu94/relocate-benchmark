@@ -26,11 +26,11 @@ reports/checkpoint-*/datasets/*/resources/
 reports/checkpoint-*/datasets/*/figures/
 reports/checkpoint-*/datasets/*/*.pdf
 
-# Development-tier report root (reports/dev/): same policy as checkpoint roots.
-reports/dev/datasets/*/per_sample/
-reports/dev/datasets/*/resources/
-reports/dev/datasets/*/figures/
-reports/dev/datasets/*/*.pdf
+# Development-tier report roots: overwritten by every dev run and moved aside
+# to reports/dev-<label>/ between runs, so none of it is versioned. Gate
+# results are recorded in docs/2026-10-19-dev-replay-tier.md instead.
+reports/dev/
+reports/dev-*/
 
 # Standalone publication figures (large, regenerable by make_report.R)
 reports/figures/

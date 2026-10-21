@@ -1,8 +1,8 @@
 # Fast development tier (RelocaTE3 replay + frozen RelocaTE2)
 
 Recorded: 2026-10-19, America/Los_Angeles.
-Benchmark branch: `feat/dev-replay-tier`.
-Status: implemented and unit-tested; acceptance gate not yet run.
+Benchmark branch: `feat/dev-replay-tier`, merged to `main` as `15d0331` (2026-10-19).
+Status: acceptance gate PASSED 2026-10-21 (288/288 identical); tier is usable.
 Design: [plans/2026-10-19-dev-replay-tier-design.md](plans/2026-10-19-dev-replay-tier-design.md).
 Plan: [plans/2026-10-19-dev-replay-tier.md](plans/2026-10-19-dev-replay-tier.md).
 
@@ -149,7 +149,35 @@ checkpoint task.
 
 ## Acceptance gate
 
-Results: TBD. Procedure (maintainer runs it, in the main checkout, after merge):
+### Results (recorded 2026-10-21)
+
+- Run: SLURM array `30130836` (144 tasks, all COMPLETED) + aggregate `30130837`.
+  First task started 2026-10-19 23:37, aggregation ended 2026-10-20 02:54
+  (3 h 17 min wall, end to end).
+- RelocaTE3 used: `95c8d68`, clean tree (all 72 `replay_source.txt` record
+  `95c8d68…` + the sha256 of an empty diff).
+- Gate: `scripts/compare_replay_gate.py` exit 0. `reports/dev/replay_gate.tsv`:
+
+  | kind | caller | identical |
+  |---|---|---|
+  | calls | relocate3-replay | 72/72 |
+  | calls | relocate2-frozen | 72/72 |
+  | precision | relocate3-replay | 72/72 |
+  | precision | relocate2-frozen | 72/72 |
+
+- Per-sample wall time, relocate3-replay vs checkpoint `relocate3-blat-bwaaln`
+  (from `reports/{dev,checkpoint-213a0df}/datasets/*/resources.tsv`):
+
+  | dataset | n | replay total | full total | speedup | slowest replay |
+  |---|---|---|---|---|---|
+  | mping | 9 | 1.24 h | 4.74 h | 3.8x | 15.7 min |
+  | ricetelib | 9 | 3.40 h | 61.79 h | 18.2x | 45.0 min |
+  | ricetelib_divergence | 54 | 18.51 h | 360.81 h | 19.5x | 46.5 min |
+
+  mping gains less because its BLAT search (one small TE) was a smaller share
+  of runtime. relocate2-frozen tasks take < 1 s.
+
+Procedure (maintainer runs it, in the main checkout, after merge):
 
 1. `git pull`.
 2. Submit the full dev run (144 tasks: 72 frozen copies + 72 replays):
@@ -165,5 +193,5 @@ Results: TBD. Procedure (maintainer runs it, in the main checkout, after merge):
 
 ## Next steps
 
-- Code review, PR to `main`, maintainer merge.
-- Run the acceptance gate and fill in the results above.
+- Done: review, merge (`15d0331`), acceptance gate (passed 2026-10-21).
+- Before each new dev run, move `runs/dev` and `reports/dev` aside (see caveats).
